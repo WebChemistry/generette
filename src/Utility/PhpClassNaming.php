@@ -54,6 +54,11 @@ final class PhpClassNaming
 		return self::withClassName($this->className . $className);
 	}
 
+	public static function createWithMerge(?string ...$arguments): self
+	{
+		return new self(self::mergeWithSlash(...$arguments));
+	}
+
 	public static function extractNamespace(string $fullName): ?string
 	{
 		$namespace = Helpers::extractNamespace($fullName);

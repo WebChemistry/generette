@@ -6,7 +6,6 @@ use WebChemistry\Generette\Printer\DefaultPrinter;
 use WebChemistry\Generette\UI\Control;
 use WebChemistry\Generette\UI\DefaultTemplate;
 use WebChemistry\Generette\Utility\FilePathUtility;
-use WebChemistry\Generette\Utility\NamingUtility;
 use WebChemistry\Generette\Utility\PhpClassNaming;
 use WebChemistry\Generette\Utility\UseStatements;
 use Nette\PhpGenerator\ClassType;
@@ -21,14 +20,10 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use WebChemistry\ServiceAttribute\Attribute\Service;
 
-final class ComponentCommand extends Command
+final class ComponentCommand extends GenerateCommand
 {
 
 	public static $defaultName = 'generate:component';
-
-	private Printer $printer;
-
-	private UseStatements $useStatements;
 
 	public function __construct(
 		private string $basePath,
@@ -37,8 +32,6 @@ final class ComponentCommand extends Command
 		private string $templateClass = DefaultTemplate::class,
 	)
 	{
-		$this->printer = new DefaultPrinter();
-
 		parent::__construct();
 	}
 
@@ -52,8 +45,7 @@ final class ComponentCommand extends Command
 
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
-		$baseDir = dirname($input->getArgument('name'));
-		$argumentName = strtr($input->getArgument('name'), ['/' => '\\']);
+		[$baseDir, $argumentName] = $this->extractBaseDirAndName($input->getArgument('name'));
 		$overwrite = $input->getOption('overwrite');
 		$constructor = $input->getOption('constructor');
 
@@ -61,20 +53,20 @@ final class ComponentCommand extends Command
 			$argumentName .= 'Component';
 		}
 
-		$className = new PhpClassNaming(NamingUtility::splitWithSlash($this->namespace, $argumentName));
+		$className = PhpClassNaming::createWithMerge($this->namespace, $argumentName);
 		$templateName = $this->extractTemplateName($className->getClassName());
 		$templateClassName = $className->withAppendedNamespace('Template')->withAppendedClassName('Template');
 		$factoryClassName = $className->withAppendedClassName('Factory');
 
 		// validate
 		if (!$overwrite && class_exists($className->getFullName())) {
-			$output->writeln(sprintf('<error>Class %s already exists.</error>', $className->getFullName()));
+			$output->writeln($this->error(sprintf('Class %s already exists.', $className->getFullName())));
 
 			return self::FAILURE;
 		}
 
 		if (!$overwrite && class_exists($templateClassName->getFullName())) {
-			$output->writeln(sprintf('<error>Class %s already exists.</error>', $templateClassName->getFullName()));
+			$output->writeln($this->error(sprintf('Class %s already exists.', $templateClassName->getFullName())));
 
 			return self::FAILURE;
 		}
@@ -106,30 +98,25 @@ final class ComponentCommand extends Command
 		FileSystem::createDir($latteDir = FilePathUtility::join($baseDir, 'templates'));
 		FileSystem::createDir($templateDir = FilePathUtility::join($baseDir, 'Template'));
 
-		file_put_contents(FilePathUtility::join($baseDir, $className->getFileName()), $this->printer->printFile($file));
-		file_put_contents(
+		// files
+		FileSystem::write(
+			FilePathUtility::join($baseDir, $className->getFileName()),
+			$this->printer->printFile($file)
+		);
+		FileSystem::write(
 			FilePathUtility::join($templateDir, $templateClassName->getFileName()),
 			$this->printer->printFile($templateFile)
 		);
-		file_put_contents(
+		FileSystem::write(
 			FilePathUtility::join($latteDir, $templateName),
 			sprintf("{templateType %s}\n", $templateClassName->getFullName())
 		);
-
-		file_put_contents(
+		FileSystem::write(
 			FilePathUtility::join($baseDir, $factoryClassName->getFileName()),
 			$this->printer->printFile($factoryFile)
 		);
 
 		return self::SUCCESS;
-	}
-
-	private function createPhpFile(): PhpFile
-	{
-		$file = new PhpFile();
-		$file->setStrictTypes();
-
-		return $file;
 	}
 
 	private function processComponentClass(ClassType $class): void
