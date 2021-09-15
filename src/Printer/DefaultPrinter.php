@@ -8,6 +8,7 @@ use Nette\PhpGenerator\Helpers;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PhpNamespace;
 use Nette\PhpGenerator\Printer;
+use Nette\PhpGenerator\PromotedParameter;
 use Nette\Utils\Strings;
 
 final class DefaultPrinter extends Printer
@@ -16,6 +17,7 @@ final class DefaultPrinter extends Printer
 	public function __construct()
 	{
 		$this->linesBetweenMethods = 1;
+		$this->linesBetweenProperties = 1;
 	}
 
 	public function printClass(ClassType $class, PhpNamespace $namespace = null): string
@@ -79,6 +81,42 @@ final class DefaultPrinter extends Printer
 				. ($members ? "\n" . $this->indent(implode("\n", $members)) . "\n" : "\n")
 				. '}'
 			) . ($class->getName() ? "\n" : '');
+	}
+
+	public function printParameters($function, PhpNamespace $namespace = null, int $column = 0): string
+	{
+		$params = [];
+		$list = $function->getParameters();
+		$special = false;
+		$forceWrap = false;
+
+		foreach ($list as $param) {
+			$variadic = $function->isVariadic() && $param === end($list);
+			$type = $param->getType();
+			$promoted = $param instanceof PromotedParameter ? $param : null;
+
+			if ($promoted) {
+				$forceWrap = true;
+			}
+
+			$params[] =
+				($promoted ? Helpers::formatDocComment((string) $promoted->getComment()) : '')
+				. ($attrs = self::printAttributes($param->getAttributes(), $namespace, true))
+				. ($promoted ? ($promoted->getVisibility() ?: 'public') . ' ' : '')
+				. ltrim($this->printType($type, $param->isNullable(), $namespace) . ' ')
+				. ($param->isReference() ? '&' : '')
+				. ($variadic ? '...' : '')
+				. '$' . $param->getName()
+				. ($param->hasDefaultValue() && !$variadic ? ' = ' . $this->dump($param->getDefaultValue()) : '');
+
+			$special = $special || $promoted || $attrs;
+		}
+
+		$line = implode(', ', $params);
+
+		return $forceWrap || count($params) > 1 && ($special || strlen($line) + $column > (new Dumper)->wrapLength)
+			? "(\n" . $this->indent(implode(",\n", $params)) . ($special ? ',' : '') . "\n)"
+			: "($line)";
 	}
 
 	public function printFile(PhpFile $file): string

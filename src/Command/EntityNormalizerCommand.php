@@ -2,7 +2,6 @@
 
 namespace WebChemistry\Generette\Command;
 
-
 use Nette\PhpGenerator\ClassType;
 use Nette\Utils\FileSystem;
 use Symfony\Component\Console\Input\InputArgument;
@@ -17,6 +16,7 @@ use Symfony\Component\Serializer\Normalizer\DenormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use WebChemistry\Generette\Utility\FilePathUtility;
+use WebChemistry\Generette\Utility\FilesWriter;
 use WebChemistry\Generette\Utility\PhpClassNaming;
 use WebChemistry\Serializer\Guard\SerializerRecursionGuard;
 use WebChemistry\ServiceAttribute\Attribute\Service;
@@ -24,7 +24,7 @@ use WebChemistry\ServiceAttribute\Attribute\Service;
 final class EntityNormalizerCommand extends GenerateCommand
 {
 
-	public static $defaultName = 'generate:normalizer:entity';
+	public static $defaultName = 'make:normalizer:entity';
 
 	public function __construct(
 		private string $basePath,
@@ -65,19 +65,15 @@ final class EntityNormalizerCommand extends GenerateCommand
 		$class = $this->createNamespaceFromFile($file, $className->getNamespace())->addClass($className->getClassName());
 		$this->processClass($class, $normalizer, $denormalizer, $constructor, $array, $populate);
 
-		FileSystem::createDir($baseDir = FilePathUtility::join($this->basePath, $baseDir));
+		// directories
+		$baseDir = FilePathUtility::join($this->basePath, $baseDir);
 
-		$filePath = FilePathUtility::join($baseDir, $className->getFileName());
-		if (file_exists($filePath)) {
-			$output->writeln($this->error(sprintf('File file://%s already exists.', $filePath)));
-
-			return self::FAILURE;
-		}
-		FileSystem::write($filePath, $this->printer->printFile($file));
-
-		$output->writeln('Created normalizer file://' . $filePath);
-
-		return self::SUCCESS;
+		return FilesWriter::create($input, $output, $this->getHelper('question'))
+			->addFile(
+				FilePathUtility::join($baseDir, $className->getFileName()),
+				$this->printer->printFile($file)
+			)
+			->write();
 	}
 
 	public function processClass(ClassType $class, bool $normalizer, bool $denormalizer, bool $constructor, bool $array, ?string $populate): void

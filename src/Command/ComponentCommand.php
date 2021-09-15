@@ -2,10 +2,13 @@
 
 namespace WebChemistry\Generette\Command;
 
+use Symfony\Component\Console\Helper\QuestionHelper;
+use Symfony\Component\Console\Question\ConfirmationQuestion;
 use WebChemistry\Generette\Printer\DefaultPrinter;
 use WebChemistry\Generette\UI\Control;
 use WebChemistry\Generette\UI\DefaultTemplate;
 use WebChemistry\Generette\Utility\FilePathUtility;
+use WebChemistry\Generette\Utility\FilesWriter;
 use WebChemistry\Generette\Utility\PhpClassNaming;
 use WebChemistry\Generette\Utility\UseStatements;
 use Nette\PhpGenerator\ClassType;
@@ -23,7 +26,7 @@ use WebChemistry\ServiceAttribute\Attribute\Service;
 final class ComponentCommand extends GenerateCommand
 {
 
-	public static $defaultName = 'generate:component';
+	public static $defaultName = 'make:component';
 
 	public function __construct(
 		private string $basePath,
@@ -58,19 +61,6 @@ final class ComponentCommand extends GenerateCommand
 		$templateClassName = $className->withAppendedNamespace('Template')->withAppendedClassName('Template');
 		$factoryClassName = $className->withAppendedClassName('Factory');
 
-		// validate
-		if (!$overwrite && class_exists($className->getFullName())) {
-			$output->writeln($this->error(sprintf('Class %s already exists.', $className->getFullName())));
-
-			return self::FAILURE;
-		}
-
-		if (!$overwrite && class_exists($templateClassName->getFullName())) {
-			$output->writeln($this->error(sprintf('Class %s already exists.', $templateClassName->getFullName())));
-
-			return self::FAILURE;
-		}
-
 		// component file
 		$file = $this->createPhpFile();
 		$namespace = $file->addNamespace($className->getNamespace());
@@ -94,27 +84,28 @@ final class ComponentCommand extends GenerateCommand
 		$this->processFactoryClass($class = $namespace->addInterface($factoryClassName->getClassName()), $className->getFullName());
 
 		// directories
-		FileSystem::createDir($baseDir = FilePathUtility::join($this->basePath, $baseDir));
-		FileSystem::createDir($latteDir = FilePathUtility::join($baseDir, 'templates'));
-		FileSystem::createDir($templateDir = FilePathUtility::join($baseDir, 'Template'));
+		$baseDir = FilePathUtility::join($this->basePath, $baseDir);
+		$latteDir = FilePathUtility::join($baseDir, 'templates');
+		$templateDir = FilePathUtility::join($baseDir, 'Template');
 
-		// files
-		FileSystem::write(
-			FilePathUtility::join($baseDir, $className->getFileName()),
-			$this->printer->printFile($file)
-		);
-		FileSystem::write(
-			FilePathUtility::join($templateDir, $templateClassName->getFileName()),
-			$this->printer->printFile($templateFile)
-		);
-		FileSystem::write(
-			FilePathUtility::join($latteDir, $templateName),
-			sprintf("{templateType %s}\n", $templateClassName->getFullName())
-		);
-		FileSystem::write(
-			FilePathUtility::join($baseDir, $factoryClassName->getFileName()),
-			$this->printer->printFile($factoryFile)
-		);
+		FilesWriter::create($input, $output, $this->getHelper('question'))
+			->addFile(
+				FilePathUtility::join($baseDir, $className->getFileName()),
+				$this->printer->printFile($file),
+			)
+			->addFile(
+				FilePathUtility::join($templateDir, $templateClassName->getFileName()),
+				$this->printer->printFile($templateFile),
+			)
+			->addFile(
+				FilePathUtility::join($latteDir, $templateName),
+				sprintf("{templateType %s}\n", $templateClassName->getFullName()),
+			)
+			->addFile(
+				FilePathUtility::join($baseDir, $factoryClassName->getFileName()),
+				$this->printer->printFile($factoryFile),
+			)
+			->write();
 
 		return self::SUCCESS;
 	}

@@ -7,6 +7,8 @@ use Nette\PhpGenerator\PhpNamespace;
 final class UseStatements
 {
 
+	private const BUILT_IN = ['string', 'int', 'bool', 'mixed', 'iterable', 'array', 'callable', 'object', 'resource'];
+
 	/** @var bool[] */
 	private array $statements = [];
 
@@ -18,6 +20,10 @@ final class UseStatements
 
 	public function use(string $class, bool $shortName = false): string
 	{
+		if (self::isBuiltIn($class)) {
+			return $class;
+		}
+
 		if (!isset($this->statements[$class])) {
 			$this->namespace->addUse($class);
 
@@ -25,6 +31,11 @@ final class UseStatements
 		}
 
 		return $shortName ? PhpClassNaming::extractClassName($class) : $class;
+	}
+
+	public static function isBuiltIn(string $type): bool
+	{
+		return in_array(ltrim($type, '?'), self::BUILT_IN, true);
 	}
 
 }
