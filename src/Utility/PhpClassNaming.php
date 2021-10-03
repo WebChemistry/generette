@@ -15,6 +15,7 @@ final class PhpClassNaming
 		private string $fullName,
 	)
 	{
+		$this->fullName = strtr($this->fullName, ['/' => '\\']);
 		$this->namespace = self::extractNamespace($this->fullName);
 		$this->className = self::extractClassName($this->fullName);
 	}
@@ -39,9 +40,19 @@ final class PhpClassNaming
 		return $this->className . '.php';
 	}
 
+	public function getPath(): string
+	{
+		return $this->namespace ? strtr($this->namespace, ['\\' => '/']) : '';
+	}
+
 	public function withAppendedNamespace(string $append): self
 	{
 		return new self(self::mergeWithSlash($this->namespace, $append, $this->className));
+	}
+
+	public function withPrependedNamespace(string $prepend): self
+	{
+		return new self(self::mergeWithSlash($prepend, $this->namespace, $this->className));
 	}
 
 	public function withClassName(string $className): self
@@ -49,9 +60,22 @@ final class PhpClassNaming
 		return new self(self::mergeWithSlash($this->namespace, $className));
 	}
 
-	public function withAppendedClassName(string $className): self
+	public function withAppendedClassName(string $append, bool $checkDuplication = false): self
 	{
-		return self::withClassName($this->className . $className);
+		if ($checkDuplication && str_ends_with($this->className, $append)) {
+			return $this->withClassName($this->className);
+		}
+
+		return $this->withClassName($this->className . $append);
+	}
+
+	public function withPrependedClassName(string $prepend, bool $checkDuplication = false): self
+	{
+		if ($checkDuplication && str_starts_with($this->className, $prepend)) {
+			return $this->withClassName($this->className);
+		}
+
+		return $this->withClassName($prepend . $this->className);
 	}
 
 	public static function createWithMerge(?string ...$arguments): self

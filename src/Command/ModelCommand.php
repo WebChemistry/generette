@@ -3,16 +3,8 @@
 namespace WebChemistry\Generette\Command;
 
 use Nette\PhpGenerator\ClassType;
-use Nette\PhpGenerator\Method;
-use Nette\Utils\Strings;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
-use WebChemistry\Generette\UI\Control;
-use WebChemistry\Generette\UI\DefaultTemplate;
-use WebChemistry\Generette\Utility\FilePathUtility;
-use WebChemistry\Generette\Utility\FilesWriter;
-use WebChemistry\Generette\Utility\PhpClassNaming;
+use WebChemistry\Generette\Command\Argument\ModelArguments;
+use WebChemistry\Generette\Utility\FilePath;
 use WebChemistry\Generette\Utility\UseStatements;
 use WebChemistry\ServiceAttribute\Attribute\Service;
 
@@ -20,6 +12,8 @@ final class ModelCommand extends GenerateCommand
 {
 
 	public static $defaultName = 'make:model';
+
+	protected ModelArguments $arguments;
 
 	public function __construct(
 		private string $basePath,
@@ -30,44 +24,31 @@ final class ModelCommand extends GenerateCommand
 		parent::__construct();
 	}
 
-	protected function configure(): void
+	protected function exec(): void
 	{
-		$this->setDescription('Creates new model')
-			->addArgument('name', InputArgument::REQUIRED, 'The name of model')
-			->addOption('constructor', 'c');
-	}
-
-	protected function execute(InputInterface $input, OutputInterface $output)
-	{
-		[$baseDir, $argumentName] = $this->extractBaseDirAndName($input->getArgument('name'));
-		$constructor = $input->getOption('constructor');
-
-		if (!str_ends_with($argumentName, 'Model')) {
-			$argumentName .= 'Model';
-		}
-
-		$className = PhpClassNaming::createWithMerge($this->namespace, $argumentName);
+		$baseClassName = $this->createClassName($this->arguments->name)
+			->withAppendedClassName('Model', true);
+		$className = $baseClassName->withPrependedNamespace($this->namespace);
 
 		// component file
 		$file = $this->createPhpFile();
 		$namespace = $file->addNamespace($className->getNamespace());
 		$this->useStatements = new UseStatements($namespace);
 		$this->processModelClass($class = $namespace->addClass($className->getClassName()));
-		if ($constructor) {
+
+		if ($this->arguments->constructor) {
 			$class->addMethod('__construct');
 		}
 
 		// directories
-		$baseDir = FilePathUtility::join($this->basePath, $baseDir);
+		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
 
-		FilesWriter::create($input, $output, $this->getHelper('question'))
+		$this->createFilesWriter()
 			->addFile(
-				FilePathUtility::join($baseDir, $className->getFileName()),
+				$baseDir->withAppendedPath($className->getFileName())->toString(),
 				$this->printer->printFile($file),
 			)
 			->write();
-
-		return self::SUCCESS;
 	}
 
 	private function processModelClass(ClassType $class): void

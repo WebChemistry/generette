@@ -4,9 +4,11 @@ namespace WebChemistry\Generette\Command;
 
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
+use WebChemistry\Generette\Command\Argument\ComponentArguments;
 use WebChemistry\Generette\Printer\DefaultPrinter;
 use WebChemistry\Generette\UI\Control;
 use WebChemistry\Generette\UI\DefaultTemplate;
+use WebChemistry\Generette\Utility\FilePath;
 use WebChemistry\Generette\Utility\FilePathUtility;
 use WebChemistry\Generette\Utility\FilesWriter;
 use WebChemistry\Generette\Utility\PhpClassNaming;
@@ -28,6 +30,8 @@ final class ComponentCommand extends GenerateCommand
 
 	public static $defaultName = 'make:component';
 
+	protected ComponentArguments $arguments;
+
 	public function __construct(
 		private string $basePath,
 		private string $namespace,
@@ -38,25 +42,10 @@ final class ComponentCommand extends GenerateCommand
 		parent::__construct();
 	}
 
-	protected function configure(): void
+	protected function exec(): void
 	{
-		$this->setDescription('Creates new component')
-			->addArgument('name', InputArgument::REQUIRED, 'The name of component')
-			->addOption('overwrite', 'o')
-			->addOption('constructor', 'c');
-	}
-
-	protected function execute(InputInterface $input, OutputInterface $output)
-	{
-		[$baseDir, $argumentName] = $this->extractBaseDirAndName($input->getArgument('name'));
-		$overwrite = $input->getOption('overwrite');
-		$constructor = $input->getOption('constructor');
-
-		if (!str_ends_with($argumentName, 'Component')) {
-			$argumentName .= 'Component';
-		}
-
-		$className = PhpClassNaming::createWithMerge($this->namespace, $argumentName);
+		$baseClassName = $this->createClassName($this->arguments->name);
+		$className = $baseClassName->withAppendedNamespace($this->namespace)->withAppendedClassName('Component', true);
 		$templateName = $this->extractTemplateName($className->getClassName());
 		$templateClassName = $className->withAppendedNamespace('Template')->withAppendedClassName('Template');
 		$factoryClassName = $className->withAppendedClassName('Factory');
@@ -66,7 +55,7 @@ final class ComponentCommand extends GenerateCommand
 		$namespace = $file->addNamespace($className->getNamespace());
 		$this->useStatements = new UseStatements($namespace);
 		$this->processComponentClass($class = $namespace->addClass($className->getClassName()));
-		if ($constructor) {
+		if ($this->arguments->constructor) {
 			$class->addMethod('__construct');
 		}
 		$this->processComponentRenderMethod($class->addMethod('render'), $templateName, $templateClassName->getFullName());
@@ -75,39 +64,37 @@ final class ComponentCommand extends GenerateCommand
 		$templateFile = $this->createPhpFile();
 		$namespace = $templateFile->addNamespace($templateClassName->getNamespace());
 		$this->useStatements = new UseStatements($namespace);
-		$this->processTemplateClass($class = $namespace->addClass($templateClassName->getClassName()));
+		$this->processTemplateClass($namespace->addClass($templateClassName->getClassName()));
 
 		// factory file
 		$factoryFile = $this->createPhpFile();
 		$namespace = $factoryFile->addNamespace($factoryClassName->getNamespace());
 		$this->useStatements = new UseStatements($namespace);
-		$this->processFactoryClass($class = $namespace->addInterface($factoryClassName->getClassName()), $className->getFullName());
+		$this->processFactoryClass($namespace->addInterface($factoryClassName->getClassName()), $className->getFullName());
 
 		// directories
-		$baseDir = FilePathUtility::join($this->basePath, $baseDir);
-		$latteDir = FilePathUtility::join($baseDir, 'templates');
-		$templateDir = FilePathUtility::join($baseDir, 'Template');
+		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
+		$latteDir = $baseDir->withAppendedPath('templates');
+		$templateDir = $baseDir->withAppendedPath('Template');
 
-		FilesWriter::create($input, $output, $this->getHelper('question'))
+		$this->createFilesWriter()
 			->addFile(
-				FilePathUtility::join($baseDir, $className->getFileName()),
+				$baseDir->withAppendedPath($className->getFileName())->toString(),
 				$this->printer->printFile($file),
 			)
 			->addFile(
-				FilePathUtility::join($templateDir, $templateClassName->getFileName()),
+				$templateDir->withAppendedPath($templateClassName->getFileName())->toString(),
 				$this->printer->printFile($templateFile),
 			)
 			->addFile(
-				FilePathUtility::join($latteDir, $templateName),
+				$latteDir->withAppendedPath($templateName)->toString(),
 				sprintf("{templateType %s}\n", $templateClassName->getFullName()),
 			)
 			->addFile(
-				FilePathUtility::join($baseDir, $factoryClassName->getFileName()),
+				$baseDir->withAppendedPath($factoryClassName->getFileName())->toString(),
 				$this->printer->printFile($factoryFile),
 			)
 			->write();
-
-		return self::SUCCESS;
 	}
 
 	private function processComponentClass(ClassType $class): void

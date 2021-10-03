@@ -3,11 +3,6 @@
 namespace WebChemistry\Generette\Command;
 
 use Nette\PhpGenerator\ClassType;
-use Nette\Utils\FileSystem;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\Normalizer\ContextAwareDenormalizerInterface;
 use Symfony\Component\Serializer\Normalizer\ContextAwareNormalizerInterface;
@@ -15,9 +10,8 @@ use Symfony\Component\Serializer\Normalizer\DenormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\DenormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
-use WebChemistry\Generette\Utility\FilePathUtility;
-use WebChemistry\Generette\Utility\FilesWriter;
-use WebChemistry\Generette\Utility\PhpClassNaming;
+use WebChemistry\Generette\Command\Argument\EntityNormalizerArguments;
+use WebChemistry\Generette\Utility\FilePath;
 use WebChemistry\Serializer\Guard\SerializerRecursionGuard;
 use WebChemistry\ServiceAttribute\Attribute\Service;
 
@@ -25,6 +19,8 @@ final class EntityNormalizerCommand extends GenerateCommand
 {
 
 	public static $defaultName = 'make:normalizer:entity';
+
+	protected EntityNormalizerArguments $arguments;
 
 	public function __construct(
 		private string $basePath,
@@ -36,51 +32,38 @@ final class EntityNormalizerCommand extends GenerateCommand
 
 	protected function configure()
 	{
-		$this->setDescription('Generates entity normalizer / denormalizer')
-			->addArgument('name', InputArgument::REQUIRED,'Normalizer name')
-			->addOption('normalizer', 'o', InputOption::VALUE_NONE, 'Only normalizer')
-			->addOption('denormalizer', 'd', InputOption::VALUE_NONE, 'Only denormalizer')
-			->addOption('populate', 'p', InputOption::VALUE_REQUIRED, 'Populate default object')
-			->addOption('array', 'a', InputOption::VALUE_NONE, 'Check if data is array')
-			->addOption('constructor', 'c', InputOption::VALUE_NONE, 'Creates constructor');
+		parent::configure();
 	}
 
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function exec(): void
 	{
-		[$baseDir, $argumentName] = $this->extractBaseDirAndName($input->getArgument('name'));
-		$normalizer = (bool) $input->getOption('normalizer');
-		$denormalizer = (bool) $input->getOption('denormalizer');
-		$constructor = (bool) $input->getOption('constructor');
-		$populate = $input->getOption('populate');
-		$array = $input->getOption('array');
+		$baseClassName = $this->createClassName($this->arguments->name);
 
-		if (!$normalizer && !$denormalizer) {
-			$normalizer = $denormalizer = true;
-		}
-
-		$className = PhpClassNaming::createWithMerge($this->namespace, $argumentName)->withAppendedClassName('Normalizer');
+		$className = $baseClassName->withPrependedNamespace($this->namespace)->withAppendedClassName('Normalizer', true);
 
 		// normalizer
 		$file = $this->createPhpFile();
 		$class = $this->createNamespaceFromFile($file, $className->getNamespace())->addClass($className->getClassName());
-		$this->processClass($class, $normalizer, $denormalizer, $constructor, $array, $populate);
+		$this->processClass($class);
 
 		// directories
-		$baseDir = FilePathUtility::join($this->basePath, $baseDir);
+		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
 
-		return FilesWriter::create($input, $output, $this->getHelper('question'))
+		$this->createFilesWriter()
 			->addFile(
-				FilePathUtility::join($baseDir, $className->getFileName()),
+				$baseDir->withAppendedPath($className->getFileName())->toString(),
 				$this->printer->printFile($file)
 			)
 			->write();
 	}
 
-	public function processClass(ClassType $class, bool $normalizer, bool $denormalizer, bool $constructor, bool $array, ?string $populate): void
+	public function processClass(ClassType $class): void
 	{
+		$populateClassName = $this->arguments->populate ? $this->createClassName($this->arguments->populate) : null;
+
 		$class->setFinal();
 		$class->addTrait($this->useStatements->use(SerializerRecursionGuard::class));
-		if ($constructor) {
+		if ($this->arguments->constructor) {
 			$class->addMethod('__construct');
 		}
 
@@ -88,7 +71,7 @@ final class EntityNormalizerCommand extends GenerateCommand
 			$class->addAttribute($this->useStatements->use(Service::class));
 		}
 
-		if ($denormalizer) {
+		if ($this->arguments->denormalizer) {
 			$class->addImplement($this->useStatements->use(ContextAwareDenormalizerInterface::class));
 			$class->addImplement($this->useStatements->use(DenormalizerAwareInterface::class));
 			$class->addTrait($this->useStatements->use(DenormalizerAwareTrait::class));
@@ -103,9 +86,8 @@ final class EntityNormalizerCommand extends GenerateCommand
 			$method->addComment('@param mixed[] $context');
 
 			// body
-			if ($populate) {
-				[,$className] = $this->extractBaseDirAndName($populate);
-				$method->addBody(sprintf('/** @var %s|null $object */', $this->useStatements->use($className, true)));
+			if ($populateClassName) {
+				$method->addBody(sprintf('/** @var %s|null $object */', $this->useStatements->use($populateClassName->getFullName(), true)));
 				$method->addBody(
 					sprintf(
 						'$object = $context[%s::OBJECT_TO_POPULATE] ?? null;',
@@ -114,7 +96,7 @@ final class EntityNormalizerCommand extends GenerateCommand
 				);
 			}
 			$method->addBody('$this->setRecursionGuard($context);');
-			if ($array) {
+			if ($this->arguments->array) {
 				$method->addBody('assert(is_array($data));');
 			}
 
@@ -133,13 +115,13 @@ final class EntityNormalizerCommand extends GenerateCommand
 			$method->addBody(
 				sprintf(
 					'return !$this->isRecursion($context) && is_a($type, %s::class, true)%s;',
-					$populate ? $this->useStatements->use($this->extractBaseDirAndName($populate)[1], true) : '',
-					$array ? ' && is_array($data)' : '',
+					$populateClassName ? $this->useStatements->use($populateClassName->getFullName(), true) : '',
+					$this->arguments->array ? ' && is_array($data)' : '',
 				));
 		}
 
 
-		if ($normalizer) {
+		if ($this->arguments->normalizer) {
 			$class->addImplement($this->useStatements->use(ContextAwareNormalizerInterface::class));
 			$class->addImplement($this->useStatements->use(NormalizerAwareInterface::class));
 			$class->addTrait($this->useStatements->use(NormalizerAwareTrait::class));
@@ -154,7 +136,7 @@ final class EntityNormalizerCommand extends GenerateCommand
 			$method->addBody(
 				sprintf(
 					'assert($data instanceof %s);',
-					$populate ? $this->useStatements->use($this->extractBaseDirAndName($populate)[1], true) : '',
+					$populateClassName ? $this->useStatements->use($populateClassName->getFullName(), true) : '',
 				),
 			);
 
@@ -173,7 +155,7 @@ final class EntityNormalizerCommand extends GenerateCommand
 			$method->addBody(
 				sprintf(
 					'return !$this->isRecursion($context) && $data instanceof %s;',
-					$populate ? $this->useStatements->use($this->extractBaseDirAndName($populate)[1], true) : '',
+					$populateClassName ? $this->useStatements->use($populateClassName->getFullName(), true) : '',
 				));
 		}
 	}

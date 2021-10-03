@@ -3,20 +3,19 @@
 namespace WebChemistry\Generette\Command;
 
 use JetBrains\PhpStorm\ArrayShape;
-use JetBrains\PhpStorm\Language;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PhpNamespace;
 use Nette\PhpGenerator\Printer;
-use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
+use WebChemistry\ConsoleArguments\BaseCommand;
 use WebChemistry\Generette\Printer\DefaultPrinter;
+use WebChemistry\Generette\Utility\FilesWriter;
+use WebChemistry\Generette\Utility\PhpClassNaming;
 use WebChemistry\Generette\Utility\PropertyExtractor;
 use WebChemistry\Generette\Utility\UseStatements;
 use WebChemistry\Generette\Utility\ValueObject\PropertyExtractedObject;
 
-abstract class GenerateCommand extends Command
+abstract class GenerateCommand extends BaseCommand
 {
 
 	protected Printer $printer;
@@ -40,12 +39,12 @@ abstract class GenerateCommand extends Command
 	/**
 	 * @return PropertyExtractedObject[]
 	 */
-	protected function getPropertiesOption(InputInterface $input, OutputInterface $output, string $name = 'properties'): array
+	protected function getPropertiesOption(string $name = 'properties'): array
 	{
 		return PropertyExtractor::extract(
-			$input->getOption($name),
-			$output,
-			$input,
+			$this->input->getOption($name),
+			$this->output,
+			$this->input,
 			$this->getHelper('question'),
 			$this->suggestionPaths,
 		);
@@ -72,15 +71,14 @@ abstract class GenerateCommand extends Command
 		return $file;
 	}
 
-	protected function error(string $message): string
+	protected function createFilesWriter(): FilesWriter
 	{
-		return '<error>' . $message . '</error>';
+		return new FilesWriter($this->input, $this->output, $this->getHelper('question'));
 	}
 
-	#[ArrayShape(['string', 'string'])]
-	protected function extractBaseDirAndName(string $name): array
+	protected function createClassName(string $fullName): PhpClassNaming
 	{
-		return [str_contains($name, '/') ? dirname($name) : '', strtr($name, ['/' => '\\'])];
+		return new PhpClassNaming($fullName);
 	}
 
 	protected function createNamespaceFromFile(PhpFile $file, string $namespace): PhpNamespace

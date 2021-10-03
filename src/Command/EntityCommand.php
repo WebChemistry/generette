@@ -8,14 +8,9 @@ use Doctrine\ORM\Mapping\GeneratedValue;
 use Doctrine\ORM\Mapping\Id;
 use Doctrine\ORM\Mapping\Table;
 use Nette\PhpGenerator\ClassType;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\String\Inflector\EnglishInflector;
-use WebChemistry\Generette\Utility\FilePathUtility;
-use WebChemistry\Generette\Utility\FilesWriter;
-use WebChemistry\Generette\Utility\PhpClassNaming;
+use WebChemistry\Generette\Command\Argument\EntityArguments;
+use WebChemistry\Generette\Utility\FilePath;
 use WebChemistry\Generette\Utility\PropertyGenerator;
 use WebChemistry\Generette\Utility\UseStatements;
 
@@ -23,6 +18,8 @@ final class EntityCommand extends GenerateCommand
 {
 
 	public static $defaultName = 'make:entity';
+
+	protected EntityArguments $arguments;
 
 	public function __construct(
 		private string $basePath,
@@ -34,30 +31,26 @@ final class EntityCommand extends GenerateCommand
 
 	protected function configure(): void
 	{
-		$this->setDescription('Creates new entity')
-			->addArgument('name', InputArgument::REQUIRED, 'The name of entity')
-			->addOption('identifier', 'i', InputOption::VALUE_NONE, 'Generate identifier')
-			->addPropertiesOption();
+		parent::configure();
+
+		$this->addPropertiesOption();
 	}
 
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function exec(): void
 	{
-		[$baseDir, $argumentName] = $this->extractBaseDirAndName($input->getArgument('name'));
-		$identifier = (bool) $input->getOption('identifier');
-		$properties = $this->getPropertiesOption($input, $output);
+		$baseClassName = $this->createClassName($this->arguments->name);
 
-		$className = PhpClassNaming::createWithMerge($this->namespace, $argumentName);
+		$properties = $this->getPropertiesOption();
+
+		$className = $baseClassName->withPrependedNamespace($this->namespace);
 
 		// component file
 		$file = $this->createPhpFile();
 		$namespace = $file->addNamespace($className->getNamespace());
 		$namespace->addUse('Doctrine\\ORM\\Mapping', 'ORM');
 		$this->useStatements = new UseStatements($namespace);
-		$this->processEntityClass($class = $namespace->addClass($className->getClassName()), $identifier);
+		$this->processEntityClass($class = $namespace->addClass($className->getClassName()));
 		$constructor = $class->addMethod('__construct');
-
-		// directories
-		$baseDir = FilePathUtility::join($this->basePath, $baseDir);
 
 		PropertyGenerator::create($properties, $this->useStatements, false)
 			->generateProperties($class, true)
@@ -73,17 +66,18 @@ final class EntityCommand extends GenerateCommand
 			$prop->addAttribute(Column::class);
 		}
 
-		FilesWriter::create($input, $output, $this->getHelper('question'))
+		// directories
+		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
+
+		$this->createFilesWriter()
 			->addFile(
-				FilePathUtility::join($baseDir, $className->getFileName()),
+				$baseDir->withAppendedPath($className->getFileName())->toString(),
 				$this->printer->printFile($file),
 			)
 			->write();
-
-		return self::SUCCESS;
 	}
 
-	private function processEntityClass(ClassType $class, bool $identifier): void
+	private function processEntityClass(ClassType $class): void
 	{
 		$tableName = preg_replace_callback(
 			'#[A-Z]#',
@@ -101,7 +95,7 @@ final class EntityCommand extends GenerateCommand
 		$class->addAttribute(Entity::class);
 		$class->addAttribute(Table::class, ['name' => $tableName]);
 
-		if ($identifier) {
+		if ($this->arguments->identifier) {
 			$property = $class->addProperty('id');
 			$property->setPrivate();
 			$property->setType('int');

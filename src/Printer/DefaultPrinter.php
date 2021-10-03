@@ -9,6 +9,7 @@ use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PhpNamespace;
 use Nette\PhpGenerator\Printer;
 use Nette\PhpGenerator\PromotedParameter;
+use Nette\PhpGenerator\Type;
 use Nette\Utils\Strings;
 
 final class DefaultPrinter extends Printer
@@ -16,107 +17,10 @@ final class DefaultPrinter extends Printer
 
 	public function __construct()
 	{
+		parent::__construct();
+
 		$this->linesBetweenMethods = 1;
 		$this->linesBetweenProperties = 1;
-	}
-
-	public function printClass(ClassType $class, PhpNamespace $namespace = null): string
-	{
-		$class->validate();
-		$resolver = $namespace
-			? [$namespace, 'unresolveUnionType']
-			: function ($s) { return $s; };
-
-		$traits = [];
-		foreach ($class->getTraitResolutions() as $trait => $resolutions) {
-			$traits[] = 'use ' . $resolver($trait)
-				. ($resolutions ? " {\n" . $this->indentation . implode(";\n" . $this->indentation, $resolutions) . ";\n}\n" : ";\n");
-		}
-
-		$consts = [];
-		foreach ($class->getConstants() as $const) {
-			$def = ($const->getVisibility() ? $const->getVisibility() . ' ' : '') . 'const ' . $const->getName() . ' = ';
-			$consts[] = Helpers::formatDocComment((string) $const->getComment())
-				. self::printAttributes($const->getAttributes(), $namespace)
-				. $def
-				. $this->dump($const->getValue(), strlen($def)) . ";\n";
-		}
-
-		$properties = [];
-		foreach ($class->getProperties() as $property) {
-			$type = $property->getType();
-			$def = (($property->getVisibility() ?: 'public') . ($property->isStatic() ? ' static' : '') . ' '
-				. ltrim($this->printType($type, $property->isNullable(), $namespace) . ' ')
-				. '$' . $property->getName());
-
-			$properties[] = Helpers::formatDocComment((string) $property->getComment())
-				. self::printAttributes($property->getAttributes(), $namespace)
-				. $def
-				. ($property->getValue() === null && !$property->isInitialized() ? '' : ' = ' . $this->dump($property->getValue(), strlen($def) + 3)) // 3 = ' = '
-				. ";\n";
-		}
-
-		$methods = [];
-		foreach ($class->getMethods() as $method) {
-			$methods[] = $this->printMethod($method, $namespace);
-		}
-
-		$members = array_filter([
-			implode('', $traits),
-			$this->joinProperties($consts),
-			$this->joinProperties($properties),
-			($methods && $properties ? str_repeat("\n", $this->linesBetweenMethods - 1) : '')
-			. implode(str_repeat("\n", $this->linesBetweenMethods), $methods),
-		]);
-
-		return Strings::normalize(
-				Helpers::formatDocComment($class->getComment() . "\n")
-				. self::printAttributes($class->getAttributes(), $namespace)
-				. ($class->isAbstract() ? 'abstract ' : '')
-				. ($class->isFinal() ? 'final ' : '')
-				. ($class->getName() ? $class->getType() . ' ' . $class->getName() . ' ' : '')
-				. ($class->getExtends() ? 'extends ' . implode(', ', array_map($resolver, (array) $class->getExtends())) . ' ' : '')
-				. ($class->getImplements() ? 'implements ' . implode(', ', array_map($resolver, $class->getImplements())) . ' ' : '')
-				. ($class->getName() ? "\n" : '') . "{\n"
-				. ($members ? "\n" . $this->indent(implode("\n", $members)) . "\n" : "\n")
-				. '}'
-			) . ($class->getName() ? "\n" : '');
-	}
-
-	public function printParameters($function, PhpNamespace $namespace = null, int $column = 0): string
-	{
-		$params = [];
-		$list = $function->getParameters();
-		$special = false;
-		$forceWrap = false;
-
-		foreach ($list as $param) {
-			$variadic = $function->isVariadic() && $param === end($list);
-			$type = $param->getType();
-			$promoted = $param instanceof PromotedParameter ? $param : null;
-
-			if ($promoted) {
-				$forceWrap = true;
-			}
-
-			$params[] =
-				($promoted ? Helpers::formatDocComment((string) $promoted->getComment()) : '')
-				. ($attrs = self::printAttributes($param->getAttributes(), $namespace, true))
-				. ($promoted ? ($promoted->getVisibility() ?: 'public') . ' ' : '')
-				. ltrim($this->printType($type, $param->isNullable(), $namespace) . ' ')
-				. ($param->isReference() ? '&' : '')
-				. ($variadic ? '...' : '')
-				. '$' . $param->getName()
-				. ($param->hasDefaultValue() && !$variadic ? ' = ' . $this->dump($param->getDefaultValue()) : '');
-
-			$special = $special || $promoted || $attrs;
-		}
-
-		$line = implode(', ', $params);
-
-		return $forceWrap || count($params) > 1 && ($special || strlen($line) + $column > (new Dumper)->wrapLength)
-			? "(\n" . $this->indent(implode(",\n", $params)) . ($special ? ',' : '') . "\n)"
-			: "($line)";
 	}
 
 	public function printFile(PhpFile $file): string
@@ -127,33 +31,28 @@ final class DefaultPrinter extends Printer
 		}
 
 		return Strings::normalize(
-				"<?php " . ($file->hasStrictTypes() ? "declare(strict_types = 1);" : '')
+				"<?php"
+				. ($file->hasStrictTypes() ? " declare(strict_types = 1);\n" : '')
 				. ($file->getComment() ? "\n" . Helpers::formatDocComment($file->getComment() . "\n") : '')
-				. "\n\n"
+				. "\n"
 				. implode("\n\n", $namespaces)
 			) . "\n";
 	}
 
-	private function printAttributes(array $attrs, ?PhpNamespace $namespace, bool $inline = false): string
+	public function printClass(ClassType $class, PhpNamespace $namespace = null): string
 	{
-		if (!$attrs) {
-			return '';
-		}
-		$items = [];
-		foreach ($attrs as $attr) {
-			$args = (new Dumper)->format('...?:', $attr->getArguments());
-			$items[] = $this->printType($attr->getName(), false, $namespace) . ($args ? "($args)" : '');
-		}
-		return $inline
-			? '#[' . implode(', ', $items) . '] '
-			: '#[' . implode("]\n#[", $items) . "]\n";
-	}
+		$lines = explode("\n", parent::printClass($class, $namespace));
+		foreach ($lines as $i => $line) {
+			if (preg_match('#^\s*(final|abstract)?\s*(class|interface|trait)#', $line)) {
+				array_splice($lines, $i + 2, 0, '');
 
-	private function joinProperties(array $props)
-	{
-		return $this->linesBetweenProperties
-			? implode(str_repeat("\n", $this->linesBetweenProperties), $props)
-			: preg_replace('#^(\w.*\n)\n(?=\w.*;)#m', '$1', implode("\n", $props));
+				break;
+			}
+		}
+
+		array_splice($lines, -2, 0, '');
+
+		return implode("\n", $lines);
 	}
 
 }

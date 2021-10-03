@@ -3,20 +3,19 @@
 namespace WebChemistry\Generette\Command;
 
 use Nette\PhpGenerator\ClassType;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Messenger\Handler\MessageHandlerInterface;
-use WebChemistry\Generette\Utility\FilePathUtility;
-use WebChemistry\Generette\Utility\FilesWriter;
-use WebChemistry\Generette\Utility\PhpClassNaming;
+use WebChemistry\Generette\Command\Argument\MessengerArguments;
+use WebChemistry\Generette\Utility\FilePath;
 use WebChemistry\Generette\Utility\PropertyGenerator;
 use WebChemistry\Generette\Utility\UseStatements;
 use WebChemistry\ServiceAttribute\Attribute\Service;
 
 final class MessengerCommand extends GenerateCommand
 {
+
 	public static $defaultName = 'make:messenger';
+
+	protected MessengerArguments $arguments;
 
 	public function __construct(
 		private string $basePath,
@@ -29,20 +28,20 @@ final class MessengerCommand extends GenerateCommand
 
 	protected function configure(): void
 	{
-		$this->setDescription('Creates new model')
-			->addArgument('name', InputArgument::REQUIRED, 'The name of model')
-			->addPropertiesOption()
+		parent::configure();
+
+		$this->addPropertiesOption()
 			->addPropertiesOption('inject', 'Generate handler inject constructor');
 	}
 
-	protected function execute(InputInterface $input, OutputInterface $output)
+	protected function exec(): void
 	{
-		[$baseDir, $argumentName] = $this->extractBaseDirAndName($input->getArgument('name'));
-		$properties = $this->getPropertiesOption($input, $output);
-		$inject = $this->getPropertiesOption($input, $output, 'inject');
+		$properties = $this->getPropertiesOption();
+		$inject = $this->getPropertiesOption('inject');
 
-		$className = PhpClassNaming::createWithMerge($this->namespace, $argumentName);
-		$handlerClassName = $className->withAppendedClassName('Handler');
+		$baseClassName = $this->createClassName($this->arguments->name);
+		$className = $baseClassName->withPrependedNamespace($this->namespace);
+		$handlerClassName = $className->withAppendedClassName('Handler', true);
 
 		// message file
 		$file = $this->createPhpFile();
@@ -66,20 +65,18 @@ final class MessengerCommand extends GenerateCommand
 			->generateConstructor($class->getMethod('__construct'), true);
 
 		// directories
-		$baseDir = FilePathUtility::join($this->basePath, $baseDir);
+		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
 
-		FilesWriter::create($input, $output, $this->getHelper('question'))
+		$this->createFilesWriter()
 			->addFile(
-				FilePathUtility::join($baseDir, $className->getFileName()),
+				$baseDir->withAppendedPath($className->getFileName())->toString(),
 				$this->printer->printFile($file),
 			)
 			->addFile(
-				FilePathUtility::join($baseDir, $handlerClassName->getFileName()),
+				$baseDir->withAppendedPath($handlerClassName->getFileName())->toString(),
 				$this->printer->printFile($handlerFile),
 			)
 			->write();
-
-		return self::SUCCESS;
 	}
 
 	private function processMessageClass(ClassType $class): void
