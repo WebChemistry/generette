@@ -47,7 +47,8 @@ final class AdminPresenterCommand extends GenerateCommand
 	private function processClass(ClassType $class): void
 	{
 		$class->setFinal();
-		$class->addMethod('__construct');
+		$class->addMethod('__construct')
+			->addBody('parent::__construct();');
 		$class->addExtend($this->useStatements->use($this->baseClass));
 
 		$method = $class->addMethod('utilize');
