@@ -33,7 +33,7 @@ final class PropertyGenerator
 		foreach ($this->properties as $property) {
 			$isInConstructor = $property->getFlag('cs', $defaultConstructorFlag);
 
-			if ($isInConstructor && $this->promotedProperties) {
+			if ($isInConstructor && $property->getFlag('prom', $this->promotedProperties)) {
 				continue;
 			}
 
@@ -52,14 +52,14 @@ final class PropertyGenerator
 		return $this;
 	}
 
-	public function generateConstructor(Method $method, bool $default = false, bool $promoted = true): self
+	public function generateConstructor(Method $method, bool $default = false): self
 	{
 		foreach ($this->properties as $property) {
 			if (!$property->getFlag('cs', $default)) {
 				continue;
 			}
 
-			if ($this->promotedProperties) {
+			if ($property->getFlag('prom', $this->promotedProperties)) {
 				$parameter = $method->addPromotedParameter($property->getName());
 				$parameter->setPrivate();
 			} else {
@@ -74,7 +74,7 @@ final class PropertyGenerator
 				$parameter->setDefaultValue($property->getDefault());
 			}
 
-			if (!$this->promotedProperties) {
+			if (!$property->getFlag('prom', $this->promotedProperties)) {
 				$method->addBody('$this->? = $?;', [$property->getName(), $property->getName()]);
 			}
 		}

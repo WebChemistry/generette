@@ -53,7 +53,6 @@ final class PropertyExtractedObject
 			'float' => (float) $this->default,
 			default => $this->default,
 		};
-		return $this->default;
 	}
 
 	public function hasDefault(): bool

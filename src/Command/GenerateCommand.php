@@ -2,18 +2,15 @@
 
 namespace WebChemistry\Generette\Command;
 
-use JetBrains\PhpStorm\ArrayShape;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PhpNamespace;
 use Nette\PhpGenerator\Printer;
-use Symfony\Component\Console\Input\InputOption;
 use WebChemistry\ConsoleArguments\BaseCommand;
 use WebChemistry\Generette\Printer\DefaultPrinter;
+use WebChemistry\Generette\Property\PropertiesOption;
 use WebChemistry\Generette\Utility\FilesWriter;
 use WebChemistry\Generette\Utility\PhpClassNaming;
-use WebChemistry\Generette\Utility\PropertyExtractor;
 use WebChemistry\Generette\Utility\UseStatements;
-use WebChemistry\Generette\Utility\ValueObject\PropertyExtractedObject;
 
 abstract class GenerateCommand extends BaseCommand
 {
@@ -36,31 +33,14 @@ abstract class GenerateCommand extends BaseCommand
 		$this->suggestionPaths[] = $suggestionPath;
 	}
 
-	/**
-	 * @return PropertyExtractedObject[]
-	 */
-	protected function getPropertiesOption(string $name = 'properties'): array
+	protected function createPropertiesOption(
+		string $name = 'properties',
+		?string $shortcut = null,
+		string $description = 'Generate properties'
+	): PropertiesOption
 	{
-		return PropertyExtractor::extract(
-			$this->input->getOption($name),
-			$this->output,
-			$this->input,
-			$this->getHelper('question'),
-			$this->suggestionPaths,
-		);
-	}
-
-	protected function addPropertiesOption(string $name = 'properties', string $description = 'Generate properties'): static
-	{
-		$this->addOption(
-			$name,
-			null,
-			InputOption::VALUE_REQUIRED,
-			sprintf("%s. Examples: property:int,property2:entities/comment || property@flag || property=default\n", $description) .
-			"Flags:\n@cs - generate property in constructor\n@get - generate getter\n@set - generate setter\n@!set - don't generate setter etc."
-		);
-
-		return $this;
+		return (new PropertiesOption($this, $name, $shortcut, $description))
+			->setSuggestionPaths($this->suggestionPaths);
 	}
 
 	protected function createPhpFile(): PhpFile

@@ -5,8 +5,8 @@ namespace WebChemistry\Generette\Command;
 use Nette\PhpGenerator\ClassType;
 use Symfony\Component\Messenger\Handler\MessageHandlerInterface;
 use WebChemistry\Generette\Command\Argument\MessengerArguments;
+use WebChemistry\Generette\Property\PropertiesOption;
 use WebChemistry\Generette\Utility\FilePath;
-use WebChemistry\Generette\Utility\PropertyGenerator;
 use WebChemistry\Generette\Utility\UseStatements;
 use WebChemistry\ServiceAttribute\Attribute\Service;
 
@@ -16,6 +16,10 @@ final class MessengerCommand extends GenerateCommand
 	public static $defaultName = 'make:messenger';
 
 	protected MessengerArguments $arguments;
+
+	private PropertiesOption $propertiesOption;
+
+	private PropertiesOption $injectOption;
 
 	public function __construct(
 		private string $basePath,
@@ -30,15 +34,18 @@ final class MessengerCommand extends GenerateCommand
 	{
 		parent::configure();
 
-		$this->addPropertiesOption()
-			->addPropertiesOption('inject', 'Generate handler inject constructor');
+		$this->propertiesOption = $this->createPropertiesOption(shortcut: 'p')
+			->setConstructorFlag(true)
+			->initialize();
+
+		$this->injectOption = $this->createPropertiesOption('inject', description: 'Generate handler inject constructor')
+			->setConstructorFlag(true)
+			->setGetterFlag(true)
+			->initialize();
 	}
 
 	protected function exec(): void
 	{
-		$properties = $this->getPropertiesOption();
-		$inject = $this->getPropertiesOption('inject');
-
 		$baseClassName = $this->createClassName($this->arguments->name);
 		$className = $baseClassName->withPrependedNamespace($this->namespace);
 		$handlerClassName = $className->withAppendedClassName('Handler', true);
@@ -50,10 +57,10 @@ final class MessengerCommand extends GenerateCommand
 		$this->processMessageClass($class = $namespace->addClass($className->getClassName()));
 		$constructor = $class->addMethod('__construct');
 
-		PropertyGenerator::create($properties, $this->useStatements)
-			->generateConstructor($constructor, true)
-			->generateProperties($class, true)
-			->generateGettersAndSetters($class, true);
+		$this->propertiesOption->setUseStatements($this->useStatements)
+			->generateConstructor($constructor)
+			->generateProperties($class)
+			->generateGettersAndSetters($class);
 
 		// handler file
 		$handlerFile = $this->createPhpFile();
@@ -61,8 +68,8 @@ final class MessengerCommand extends GenerateCommand
 		$this->useStatements = new UseStatements($namespace);
 		$this->processHandlerClass($class = $namespace->addClass($handlerClassName->getClassName()), $className->getFullName());
 
-		PropertyGenerator::create($inject, $this->useStatements)
-			->generateConstructor($class->getMethod('__construct'), true);
+		$this->injectOption->setUseStatements($this->useStatements)
+			->generateConstructor($class->getMethod('__construct'));
 
 		// directories
 		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());

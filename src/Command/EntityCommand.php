@@ -10,6 +10,7 @@ use Doctrine\ORM\Mapping\Table;
 use Nette\PhpGenerator\ClassType;
 use Symfony\Component\String\Inflector\EnglishInflector;
 use WebChemistry\Generette\Command\Argument\EntityArguments;
+use WebChemistry\Generette\Property\PropertiesOption;
 use WebChemistry\Generette\Utility\FilePath;
 use WebChemistry\Generette\Utility\PropertyGenerator;
 use WebChemistry\Generette\Utility\UseStatements;
@@ -20,6 +21,8 @@ final class EntityCommand extends GenerateCommand
 	public static $defaultName = 'make:entity';
 
 	protected EntityArguments $arguments;
+
+	private PropertiesOption $propertiesOption;
 
 	public function __construct(
 		private string $basePath,
@@ -33,14 +36,18 @@ final class EntityCommand extends GenerateCommand
 	{
 		parent::configure();
 
-		$this->addPropertiesOption();
+		$this->propertiesOption = $this->createPropertiesOption(shortcut: 'p')
+			->setPromotedFlag(false)
+			->setConstructorFlag(true)
+			->setGetterFlag(true)
+			->setSetterFlag(true)
+			->addFlag('id', 'creates id')
+			->initialize();
 	}
 
 	protected function exec(): void
 	{
 		$baseClassName = $this->createClassName($this->arguments->name);
-
-		$properties = $this->getPropertiesOption();
 
 		$className = $baseClassName->withPrependedNamespace($this->namespace);
 
@@ -52,12 +59,12 @@ final class EntityCommand extends GenerateCommand
 		$this->processEntityClass($class = $namespace->addClass($className->getClassName()));
 		$constructor = $class->addMethod('__construct');
 
-		PropertyGenerator::create($properties, $this->useStatements, false)
-			->generateProperties($class, true)
-			->generateConstructor($constructor, true)
-			->generateGettersAndSetters($class, true, true);
+		$this->propertiesOption->setUseStatements($this->useStatements)
+			->generateProperties($class)
+			->generateGettersAndSetters($class)
+			->generateConstructor($constructor);
 
-		foreach ($properties as $property) {
+		foreach ($this->propertiesOption->getAll() as $property) {
 			$prop = $class->getProperty($property->getName());
 			if ($property->getFlag('id')) {
 				$prop->addAttribute(Id::class)->addAttribute(GeneratedValue::class);
