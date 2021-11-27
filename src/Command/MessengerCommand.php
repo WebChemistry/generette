@@ -22,7 +22,6 @@ final class MessengerCommand extends GenerateCommand
 	private PropertiesOption $injectOption;
 
 	public function __construct(
-		private string $basePath,
 		private string $namespace,
 		private string $interface = MessageHandlerInterface::class,
 	)
@@ -40,50 +39,35 @@ final class MessengerCommand extends GenerateCommand
 
 		$this->injectOption = $this->createPropertiesOption('inject', description: 'Generate handler inject constructor')
 			->setConstructorFlag(true)
-			->setGetterFlag(true)
+			->setPromotedFlag(true)
 			->initialize();
 	}
 
 	protected function exec(): void
 	{
-		$baseClassName = $this->createClassName($this->arguments->name);
-		$className = $baseClassName->withPrependedNamespace($this->namespace);
-		$handlerClassName = $className->withAppendedClassName('Handler', true);
+		$writer = $this->createFilesWriter();
+		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace);
+		$handlerClassName = $className->withAppendedClassName('Handler');
 
 		// message file
-		$file = $this->createPhpFile();
-		$namespace = $file->addNamespace($className->getNamespace());
-		$this->useStatements = new UseStatements($namespace);
-		$this->processMessageClass($class = $namespace->addClass($className->getClassName()));
-		$constructor = $class->addMethod('__construct');
+		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
+		$this->processMessageClass($class);
 
-		$this->propertiesOption->setUseStatements($this->useStatements)
-			->generateConstructor($constructor)
-			->generateProperties($class)
-			->generateGettersAndSetters($class);
+		$this->propertiesOption->generateAll($this->useStatements, $class);
+
+		$writer->addFile($this->getFilePathFromClassName($className), $this->printer->printFile($file));
 
 		// handler file
-		$handlerFile = $this->createPhpFile();
-		$namespace = $handlerFile->addNamespace($handlerClassName->getNamespace());
-		$this->useStatements = new UseStatements($namespace);
-		$this->processHandlerClass($class = $namespace->addClass($handlerClassName->getClassName()), $className->getFullName());
+		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $handlerClassName);
+		$this->processHandlerClass($class, $className->getFullName());
 
 		$this->injectOption->setUseStatements($this->useStatements)
 			->generateConstructor($class->getMethod('__construct'));
 
-		// directories
-		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
+		$writer->addFile($this->getFilePathFromClassName($handlerClassName), $this->printer->printFile($file));
 
-		$this->createFilesWriter()
-			->addFile(
-				$baseDir->withAppendedPath($className->getFileName())->toString(),
-				$this->printer->printFile($file),
-			)
-			->addFile(
-				$baseDir->withAppendedPath($handlerClassName->getFileName())->toString(),
-				$this->printer->printFile($handlerFile),
-			)
-			->write();
+		// directories
+		$writer->write();
 	}
 
 	private function processMessageClass(ClassType $class): void

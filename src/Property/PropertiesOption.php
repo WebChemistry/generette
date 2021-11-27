@@ -31,6 +31,9 @@ final class PropertiesOption
 	/** @var array<string, string> */
 	private array $flags = [];
 
+	/** @var PropertyExtractedObject[] */
+	private array $extracted;
+
 	public function __construct(
 		private BaseCommand $command,
 		private string $name = 'properties',
@@ -94,7 +97,7 @@ final class PropertiesOption
 	 */
 	public function getAll(): array
 	{
-		return PropertyExtractor::extract(
+		return $this->extracted ??= PropertyExtractor::extract(
 			$this->command->getInput()->getOption($this->name),
 			$this->command->getOutput(),
 			$this->command->getInput(),
@@ -141,6 +144,21 @@ final class PropertiesOption
 	public function generateGettersAndSetters(ClassType $classType): static
 	{
 		$this->getGenerator()->generateGettersAndSetters($classType, $this->getterFlag, $this->setterFlag);
+
+		return $this;
+	}
+
+	public function generateAll(UseStatements $useStatements, ClassType $classType): static
+	{
+		$this->setUseStatements($useStatements);
+
+		if (!$classType->hasMethod('__constructor')) {
+			$classType->addMethod('__constructor');
+		}
+
+		$this->generateConstructor($classType->getMethod('__constructor'));
+		$this->generateGettersAndSetters($classType);
+		$this->generateProperties($classType);
 
 		return $this;
 	}

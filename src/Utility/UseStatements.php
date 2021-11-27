@@ -18,14 +18,14 @@ final class UseStatements
 	{
 	}
 
-	public function use(string $class, bool $shortName = false): string
+	public function use(string $class, bool $shortName = false, ?string $alias = null): string
 	{
 		if (self::isBuiltIn($class)) {
 			return $class;
 		}
 
 		if (!isset($this->statements[$class])) {
-			$this->namespace->addUse($class);
+			$this->namespace->addUse($class, $alias);
 
 			$this->statements[$class] = true;
 		}

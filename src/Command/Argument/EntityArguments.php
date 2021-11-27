@@ -7,7 +7,7 @@ use WebChemistry\ConsoleArguments\Attribute\Description;
 use WebChemistry\ConsoleArguments\Attribute\Shortcut;
 
 #[Description('Makes new entity.')]
-final class EntityArguments
+final class EntityArguments implements ArgumentWithClassNameInterface
 {
 
 	#[Argument]
@@ -17,5 +17,10 @@ final class EntityArguments
 	#[Shortcut('i')]
 	#[Description('Generate identifier.')]
 	public bool $identifier = false;
+
+	public function getClassName(): string
+	{
+		return $this->name;
+	}
 
 }

@@ -7,7 +7,7 @@ use WebChemistry\ConsoleArguments\Attribute\Description;
 use WebChemistry\ConsoleArguments\Attribute\Shortcut;
 
 #[Description('Creates new component.')]
-final class ComponentArguments
+final class ComponentArguments implements ArgumentWithClassNameInterface
 {
 
 	#[Argument]
@@ -16,5 +16,10 @@ final class ComponentArguments
 
 	#[Shortcut('c')]
 	public bool $constructor = false;
+
+	public function getClassName(): string
+	{
+		return $this->name;
+	}
 
 }

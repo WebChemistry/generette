@@ -4,14 +4,12 @@ namespace WebChemistry\Generette\Command\Argument;
 
 use WebChemistry\ConsoleArguments\Attribute\Argument;
 use WebChemistry\ConsoleArguments\Attribute\Description;
-use WebChemistry\ConsoleArguments\Attribute\Shortcut;
 
-#[Description('Makes model')]
-final class ModelArguments implements ArgumentWithClassNameInterface
+#[Description('Makes presenter.')]
+final class PresenterArguments implements ArgumentWithClassNameInterface
 {
 
-	#[Description('The name of model')]
-	#[Argument]
+	#[Argument('The name of presenter.')]
 	public string $name;
 
 	public function getClassName(): string

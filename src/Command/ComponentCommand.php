@@ -2,11 +2,11 @@
 
 namespace WebChemistry\Generette\Command;
 
+use Nette\Application\UI\Control;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use WebChemistry\Generette\Command\Argument\ComponentArguments;
 use WebChemistry\Generette\Printer\DefaultPrinter;
-use WebChemistry\Generette\UI\Control;
 use WebChemistry\Generette\UI\DefaultTemplate;
 use WebChemistry\Generette\Utility\FilePath;
 use WebChemistry\Generette\Utility\FilePathUtility;
@@ -33,10 +33,12 @@ final class ComponentCommand extends GenerateCommand
 	protected ComponentArguments $arguments;
 
 	public function __construct(
-		private string $basePath,
 		private string $namespace,
 		private string $controlClass = Control::class,
 		private string $templateClass = DefaultTemplate::class,
+		private string $templateMethod = '$this->getTemplate()',
+		private array $traits = [],
+		private ?string $basePath = null,
 	)
 	{
 		parent::__construct();
@@ -44,76 +46,62 @@ final class ComponentCommand extends GenerateCommand
 
 	protected function exec(): void
 	{
-		$baseClassName = $this->createClassName($this->arguments->name);
-		$className = $baseClassName->withAppendedNamespace($this->namespace)->withAppendedClassName('Component', true);
+		$writer = $this->createFilesWriter();
+
+		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace)
+			->withAppendedClassName('Component', true);
 		$templateName = $this->extractTemplateName($className->getClassName());
 		$templateClassName = $className->withAppendedNamespace('Template')->withAppendedClassName('Template');
 		$factoryClassName = $className->withAppendedClassName('Factory');
 
-		// component file
-		$file = $this->createPhpFile();
-		$namespace = $file->addNamespace($className->getNamespace());
-		$this->useStatements = new UseStatements($namespace);
-		$this->processComponentClass($class = $namespace->addClass($className->getClassName()));
-		if ($this->arguments->constructor) {
-			$class->addMethod('__construct');
-		}
+		// component
+		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
+		$class->addMethod('__construct');
+		$this->processComponentClass($class);
 		$this->processComponentRenderMethod($class->addMethod('render'), $templateName, $templateClassName->getFullName());
 
-		// template file
-		$templateFile = $this->createPhpFile();
-		$namespace = $templateFile->addNamespace($templateClassName->getNamespace());
-		$this->useStatements = new UseStatements($namespace);
-		$this->processTemplateClass($namespace->addClass($templateClassName->getClassName()));
+		$writer->addFile($this->getFilePathFromClassName($className), $this->printer->printFile($file));
 
-		// factory file
-		$factoryFile = $this->createPhpFile();
-		$namespace = $factoryFile->addNamespace($factoryClassName->getNamespace());
-		$this->useStatements = new UseStatements($namespace);
-		$this->processFactoryClass($namespace->addInterface($factoryClassName->getClassName()), $className->getFullName());
+		// template
+		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $templateClassName);
+		$this->processTemplateClass($class);
 
-		// directories
-		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
-		$latteDir = $baseDir->withAppendedPath('templates');
-		$templateDir = $baseDir->withAppendedPath('Template');
+		$writer->addFile($this->getFilePathFromClassName($templateClassName), $this->printer->printFile($file));
 
-		$this->createFilesWriter()
-			->addFile(
-				$baseDir->withAppendedPath($className->getFileName())->toString(),
-				$this->printer->printFile($file),
-			)
-			->addFile(
-				$templateDir->withAppendedPath($templateClassName->getFileName())->toString(),
-				$this->printer->printFile($templateFile),
-			)
-			->addFile(
-				$latteDir->withAppendedPath($templateName)->toString(),
-				sprintf("{templateType %s}\n", $templateClassName->getFullName()),
-			)
-			->addFile(
-				$baseDir->withAppendedPath($factoryClassName->getFileName())->toString(),
-				$this->printer->printFile($factoryFile),
-			)
-			->write();
+		// factory
+		$interface = $this->createInterfaceFromClassName($file = $this->createPhpFile(), $factoryClassName);
+		$this->processFactoryClass($interface, $className->getFullName());
+
+		$writer->addFile($this->getFilePathFromClassName($factoryClassName), $this->printer->printFile($file));
+
+		// latte file
+		$writer->addFile(
+			dirname($this->getFilePathFromClassName($className)) . '/templates/' . $templateName,
+			sprintf("{templateType %s}\n", $templateClassName->getFullName())
+		);
+
+		$writer->write();
 	}
 
 	private function processComponentClass(ClassType $class): void
 	{
 		$class->addExtend($this->useStatements->use($this->controlClass));
 		$class->setFinal();
+
+		foreach ($this->traits as $trait) {
+			$class->addTrait($this->useStatements->use($trait));
+		}
 	}
 
 	private function processComponentRenderMethod(Method $method, string $templateName, string $templateClassName): void
 	{
 		$method->setReturnType('void');
 
-		$method->addBody(sprintf(
-			'$template = $this->getTemplateObject(%s::class);',
-			$this->useStatements->use($templateClassName, true),
-		));
-		$method->addBody(sprintf("\$template->setFile(__DIR__ . '/templates/%s');", $templateName));
+		$method->addBody(
+			'$template = ' . strtr($this->templateMethod, ['$templateClassName' => $this->useStatements->use($templateClassName, true)])
+		);
 		$method->addBody("\n");
-		$method->addBody('$template->render();');
+		$method->addBody(sprintf("\$template->render(__DIR__ . '/templates/%s');", $templateName));
 	}
 
 	private function processTemplateClass(ClassType $class): void

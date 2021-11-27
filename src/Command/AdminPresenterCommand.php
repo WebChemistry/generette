@@ -15,7 +15,6 @@ final class AdminPresenterCommand extends GenerateCommand
 	protected AdminPresenterArguments $arguments;
 
 	public function __construct(
-		private string $basePath,
 		private string $namespace,
 		private string $baseClass = Presenter::class,
 	)
@@ -25,23 +24,18 @@ final class AdminPresenterCommand extends GenerateCommand
 
 	protected function exec(): void
 	{
-		$baseClassName = $this->createClassName($this->arguments->name);
+		$writer = $this->createFilesWriter();
 
-		$className = $baseClassName->withPrependedNamespace($this->namespace)->withAppendedClassName('Presenter', true);
+		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace)
+			->withAppendedClassName('Presenter', true);
 
-		$file = $this->createPhpFile();
-		$class = $this->createNamespaceFromFile($file, $className->getNamespace())->addClass($className->getClassName());
+		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
 		$this->processClass($class);
 
-		// directories
-		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
-
-		$this->createFilesWriter()
-			->addFile(
-				$baseDir->withAppendedPath($className->getFileName())->toString(),
-				$this->printer->printFile($file)
-			)
-			->write();
+		$writer->addFile(
+			$this->getFilePathFromClassName($className),
+			$this->printer->printFile($file)
+		)->write();
 	}
 
 	private function processClass(ClassType $class): void

@@ -8,7 +8,7 @@ use WebChemistry\ConsoleArguments\Attribute\Shortcut;
 use WebChemistry\ConsoleArguments\Extension\ValidateObjectInterface;
 
 #[Description('Generates entity normalizer / denormalizer.')]
-final class EntityNormalizerArguments implements ValidateObjectInterface
+final class EntityNormalizerArguments implements ValidateObjectInterface, ArgumentWithClassNameInterface
 {
 
 	#[Argument]
@@ -34,6 +34,11 @@ final class EntityNormalizerArguments implements ValidateObjectInterface
 	#[Description('Check if data is array.')]
 	#[Shortcut('c')]
 	public bool $constructor = false;
+
+	public function getClassName(): string
+	{
+		return $this->name;
+	}
 
 	public function validate(): void
 	{

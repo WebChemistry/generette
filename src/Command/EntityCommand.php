@@ -6,6 +6,8 @@ use Doctrine\ORM\Mapping\Column;
 use Doctrine\ORM\Mapping\Entity;
 use Doctrine\ORM\Mapping\GeneratedValue;
 use Doctrine\ORM\Mapping\Id;
+use Doctrine\ORM\Mapping\JoinColumn;
+use Doctrine\ORM\Mapping\ManyToOne;
 use Doctrine\ORM\Mapping\Table;
 use Nette\PhpGenerator\ClassType;
 use Symfony\Component\String\Inflector\EnglishInflector;
@@ -25,7 +27,6 @@ final class EntityCommand extends GenerateCommand
 	private PropertiesOption $propertiesOption;
 
 	public function __construct(
-		private string $basePath,
 		private string $namespace,
 	)
 	{
@@ -47,17 +48,20 @@ final class EntityCommand extends GenerateCommand
 
 	protected function exec(): void
 	{
-		$baseClassName = $this->createClassName($this->arguments->name);
-
-		$className = $baseClassName->withPrependedNamespace($this->namespace);
+		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace);
 
 		// component file
-		$file = $this->createPhpFile();
-		$namespace = $file->addNamespace($className->getNamespace());
-		$namespace->addUse('Doctrine\\ORM\\Mapping', 'ORM');
-		$this->useStatements = new UseStatements($namespace);
+		$this->createClassFromClassName($file = $this->createPhpFile(), $className);
+		$this->useStatements->use('Doctrine\\ORM\\Mapping', alias: 'ORM');
 		$this->processEntityClass($class = $namespace->addClass($className->getClassName()));
 		$constructor = $class->addMethod('__construct');
+
+		foreach ($this->propertiesOption->getAll() as $property) {
+			if ($property->hasFlag('id')) {
+				$property->setFlagIfNotSet('set', false);
+				$property->setFlagIfNotSet('cs', false);
+			}
+		}
 
 		$this->propertiesOption->setUseStatements($this->useStatements)
 			->generateProperties($class)
@@ -66,19 +70,29 @@ final class EntityCommand extends GenerateCommand
 
 		foreach ($this->propertiesOption->getAll() as $property) {
 			$prop = $class->getProperty($property->getName());
+			$classType = $property->getType() && !UseStatements::isBuiltIn($property->getType());
 			if ($property->getFlag('id')) {
-				$prop->addAttribute(Id::class)->addAttribute(GeneratedValue::class);
+				$prop->addAttribute(Id::class);
+				if (!$classType) {
+					$prop->addAttribute(GeneratedValue::class);
+				}
 			}
 
-			$prop->addAttribute(Column::class);
+			if ($classType) {
+				$prop->addAttribute(ManyToOne::class);
+				$prop->addAttribute(JoinColumn::class, [
+					'nullable' => false,
+					'onDelete' => 'CASCADE',
+				]);
+			} else {
+				$prop->addAttribute(Column::class);
+			}
 		}
 
 		// directories
-		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
-
 		$this->createFilesWriter()
 			->addFile(
-				$baseDir->withAppendedPath($className->getFileName())->toString(),
+				$this->getFilePathFromClassName($className),
 				$this->printer->printFile($file),
 			)
 			->write();

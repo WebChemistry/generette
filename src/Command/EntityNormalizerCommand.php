@@ -23,35 +23,25 @@ final class EntityNormalizerCommand extends GenerateCommand
 	protected EntityNormalizerArguments $arguments;
 
 	public function __construct(
-		private string $basePath,
 		private string $namespace,
 	)
 	{
 		parent::__construct();
 	}
 
-	protected function configure()
-	{
-		parent::configure();
-	}
-
 	protected function exec(): void
 	{
-		$baseClassName = $this->createClassName($this->arguments->name);
-
-		$className = $baseClassName->withPrependedNamespace($this->namespace)->withAppendedClassName('Normalizer', true);
+		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace)
+			->withAppendedClassName('Normalizer', true);
 
 		// normalizer
-		$file = $this->createPhpFile();
-		$class = $this->createNamespaceFromFile($file, $className->getNamespace())->addClass($className->getClassName());
+		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
 		$this->processClass($class);
 
 		// directories
-		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
-
 		$this->createFilesWriter()
 			->addFile(
-				$baseDir->withAppendedPath($className->getFileName())->toString(),
+				$this->getFilePathFromClassName($className),
 				$this->printer->printFile($file)
 			)
 			->write();

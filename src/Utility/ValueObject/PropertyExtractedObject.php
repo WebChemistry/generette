@@ -2,6 +2,8 @@
 
 namespace WebChemistry\Generette\Utility\ValueObject;
 
+use function Clue\StreamFilter\remove;
+
 final class PropertyExtractedObject
 {
 
@@ -31,9 +33,30 @@ final class PropertyExtractedObject
 		return $this->type;
 	}
 
+	public function hasFlag(string $flag): bool
+	{
+		return array_key_exists($flag, $this->flags);
+	}
+
 	public function getFlag(string $flag, mixed $default = false): mixed
 	{
 		return $this->flags[$flag] ?? $default;
+	}
+
+	public function setFlag(string $flag, mixed $value): self
+	{
+		$this->flags[$flag] = $value;
+
+		return $this;
+	}
+
+	public function setFlagIfNotSet(string $flag, mixed $value): self
+	{
+		if (!$this->hasFlag($flag)) {
+			$this->flags[$flag] = $value;
+		}
+
+		return $this;
 	}
 
 	public function getDefault(): mixed

@@ -15,7 +15,7 @@ final class PhpClassNaming
 		private string $fullName,
 	)
 	{
-		$this->fullName = strtr($this->fullName, ['/' => '\\']);
+		$this->fullName = self::normalizeNamespace(strtr($this->fullName, ['/' => '\\']));
 		$this->namespace = self::extractNamespace($this->fullName);
 		$this->className = self::extractClassName($this->fullName);
 	}
@@ -43,6 +43,34 @@ final class PhpClassNaming
 	public function getPath(): string
 	{
 		return $this->namespace ? strtr($this->namespace, ['\\' => '/']) : '';
+	}
+
+	public function withMapped(callable $mapCallback): self
+	{
+		return new self(self::mergeWithSlash(...array_map(
+			$mapCallback,
+			explode('\\', $this->getFullName())
+		)));
+	}
+
+	public function withNamespace(string $namespace): self
+	{
+		return new self(self::mergeWithSlash($namespace, $this->className));
+	}
+
+	public function withRemovedNamespace(string $namespace): self
+	{
+		return $this->withNamespace($this->removeFromNamespace($namespace));
+	}
+
+	public function withRemovedNamespaceFromStart(string $namespace): self
+	{
+		return $this->withNamespace($this->removeFromNamespace($namespace, '^'));
+	}
+
+	public function withRemovedNamespaceFromEnd(string $namespace): self
+	{
+		return $this->withNamespace($this->removeFromNamespace($namespace, '', '$'));
 	}
 
 	public function withAppendedNamespace(string $append): self
@@ -95,6 +123,11 @@ final class PhpClassNaming
 		return Helpers::extractShortName($fullName);
 	}
 
+	public static function normalizeNamespace(string $namespace): string
+	{
+		return trim($namespace, '\\');
+	}
+
 	public static function mergeWithSlash(?string ...$arguments): string
 	{
 		$str = '';
@@ -107,6 +140,20 @@ final class PhpClassNaming
 		}
 
 		return $str ? substr($str, 0, -1) : $str;
+	}
+
+	private function removeFromNamespace(string $needle, string $regexPrepend = '', string $regexAppend = ''): ?string
+	{
+		if (!$this->namespace) {
+			return $this->namespace;
+		}
+
+		$arg = preg_quote(self::normalizeNamespace($needle));
+		$pattern = sprintf('#%s\\\\?%s\\\\?%s#', $regexPrepend, $arg, $regexAppend);
+
+		return self::normalizeNamespace(
+			preg_replace($pattern, '\\', $this->namespace)
+		);
 	}
 
 }

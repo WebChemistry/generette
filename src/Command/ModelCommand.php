@@ -16,7 +16,6 @@ final class ModelCommand extends GenerateCommand
 	protected ModelArguments $arguments;
 
 	public function __construct(
-		private string $basePath,
 		private string $namespace,
 		private string $modelClass,
 	)
@@ -26,23 +25,14 @@ final class ModelCommand extends GenerateCommand
 
 	protected function exec(): void
 	{
-		$baseClassName = $this->createClassName($this->arguments->name)
+		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace)
 			->withAppendedClassName('Model', true);
-		$className = $baseClassName->withPrependedNamespace($this->namespace);
 
 		// component file
-		$file = $this->createPhpFile();
-		$namespace = $file->addNamespace($className->getNamespace());
-		$this->useStatements = new UseStatements($namespace);
-		$this->processModelClass($class = $namespace->addClass($className->getClassName()));
-
-		if ($this->arguments->constructor) {
-			$class->addMethod('__construct');
-		}
+		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
+		$this->processModelClass($class);
 
 		// directories
-		$baseDir = new FilePath($this->basePath, $baseClassName->getPath());
-
 		$this->createFilesWriter()
 			->addFile(
 				$baseDir->withAppendedPath($className->getFileName())->toString(),
@@ -59,6 +49,8 @@ final class ModelCommand extends GenerateCommand
 		if (class_exists(Service::class)) {
 			$class->addAttribute($this->useStatements->use(Service::class));
 		}
+
+		$class->addMethod('__construct');
 	}
 
 }
