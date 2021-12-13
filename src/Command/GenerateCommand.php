@@ -102,7 +102,11 @@ abstract class GenerateCommand extends BaseCommand
 	protected function createClassNameFromArguments(ArgumentWithClassNameInterface $arguments, ?string $namespacePrefix): PhpClassNaming
 	{
 		$className = $this->createClassName($arguments->getClassName());
-		if ($namespacePrefix && !str_starts_with($arguments->getClassName(), '\\')) {
+		if (
+			$namespacePrefix &&
+			!str_starts_with($arguments->getClassName(), '\\') &&
+			!str_starts_with($arguments->getClassName(), '/')
+		) {
 			$className = $className->withPrependedNamespace($namespacePrefix);
 		}
 
