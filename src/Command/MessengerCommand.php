@@ -47,7 +47,7 @@ final class MessengerCommand extends GenerateCommand
 	{
 		$writer = $this->createFilesWriter();
 		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace);
-		$handlerClassName = $className->withAppendedClassName('Handler');
+		$handlerClassName = $className->withAppendedNamespace('Handler')->withAppendedClassName('Handler');
 
 		// message file
 		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
