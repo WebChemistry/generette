@@ -152,11 +152,11 @@ final class PropertiesOption
 	{
 		$this->setUseStatements($useStatements);
 
-		if (!$classType->hasMethod('__constructor')) {
-			$classType->addMethod('__constructor');
+		if (!$classType->hasMethod('__construct')) {
+			$classType->addMethod('__construct');
 		}
 
-		$this->generateConstructor($classType->getMethod('__constructor'));
+		$this->generateConstructor($classType->getMethod('__construct'));
 		$this->generateGettersAndSetters($classType);
 		$this->generateProperties($classType);
 
