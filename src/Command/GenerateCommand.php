@@ -14,6 +14,7 @@ use WebChemistry\Generette\Command\Argument\ArgumentWithClassNameInterface;
 use WebChemistry\Generette\Composer\ComposerPathAutoload;
 use WebChemistry\Generette\Printer\DefaultPrinter;
 use WebChemistry\Generette\Property\PropertiesOption;
+use WebChemistry\Generette\Property\PropertyOption;
 use WebChemistry\Generette\Utility\FilePath;
 use WebChemistry\Generette\Utility\FilesWriter;
 use WebChemistry\Generette\Utility\PhpClassNaming;
@@ -30,6 +31,9 @@ abstract class GenerateCommand extends BaseCommand
 
 	protected array $suggestionPaths = [];
 
+	/** @var PropertyOption[] */
+	private array $initialize = [];
+
 	/** @var PropertiesOption[] */
 	private array $properties = [];
 
@@ -38,6 +42,15 @@ abstract class GenerateCommand extends BaseCommand
 		$this->printer = new DefaultPrinter();
 
 		parent::__construct();
+	}
+
+	protected function configure()
+	{
+		parent::configure();
+
+		foreach ($this->initialize as $option) {
+			$option->initialize();
+		}
 	}
 
 	public function setComposer(?string $composer): static
@@ -61,6 +74,15 @@ abstract class GenerateCommand extends BaseCommand
 	public function addSuggestionPath(string $suggestionPath): void
 	{
 		$this->suggestionPaths[] = $suggestionPath;
+	}
+
+	protected function addPropertyOption(
+		string $name = 'properties',
+		?string $shortcut = null,
+		string $description = 'Generate properties'
+	): PropertyOption
+	{
+		return $this->initialize[] = new PropertyOption($this, $name, $shortcut, $description);
 	}
 
 	protected function createPropertiesOption(
