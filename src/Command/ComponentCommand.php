@@ -64,7 +64,7 @@ final class ComponentCommand extends GenerateCommand
 
 		// template
 		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $templateClassName);
-		$this->processTemplateClass($class);
+		$this->processTemplateClass($class, $className->getFullName());
 
 		$writer->addFile($this->getFilePathFromClassName($templateClassName), $this->printer->printFile($file));
 
@@ -104,10 +104,14 @@ final class ComponentCommand extends GenerateCommand
 		$method->addBody(sprintf("\$template->render(__DIR__ . '/templates/%s');", $templateName));
 	}
 
-	private function processTemplateClass(ClassType $class): void
+	private function processTemplateClass(ClassType $class, string $controlClass): void
 	{
 		$class->setFinal();
 		$class->addExtend($this->useStatements->use($this->templateClass));
+
+		$class->addProperty('control')
+			->setPublic()
+			->setType($this->useStatements->use($controlClass));
 	}
 
 	private function extractTemplateName(string $className): string
