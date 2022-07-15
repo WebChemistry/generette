@@ -16,7 +16,7 @@ final class MessengerArguments
 	#[Argument]
 	public string $name;
 
-	#[ConfigureProperties(csFlag: true)]
+	#[ConfigureProperties(flags: Properties::FLAG_CS_TRUE + Properties::FLAG_GET_TRUE + Properties::FLAG_PROM_TRUE)]
 	#[Shortcut('p')]
 	public ?Properties $props;
 
