@@ -4,20 +4,20 @@ namespace WebChemistry\Generette\Utility;
 
 use Nette\PhpGenerator\Helpers;
 
-final class PhpClassNaming
+class PhpClassName
 {
 
 	private string $className;
 
 	private ?string $namespace;
 
-	public function __construct(
+	final public function __construct(
 		private string $fullName,
 	)
 	{
-		$this->fullName = self::normalizeNamespace(strtr($this->fullName, ['/' => '\\']));
-		$this->namespace = self::extractNamespace($this->fullName);
-		$this->className = self::extractClassName($this->fullName);
+		$this->fullName = static::normalizeNamespace(strtr($this->fullName, ['/' => '\\']));
+		$this->namespace = static::extractNamespace($this->fullName);
+		$this->className = static::extractClassName($this->fullName);
 	}
 
 	public function getClassName(): string
@@ -45,50 +45,50 @@ final class PhpClassNaming
 		return $this->namespace ? strtr($this->namespace, ['\\' => '/']) : '';
 	}
 
-	public function withMapped(callable $mapCallback): self
+	public function withMap(callable $mapCallback): static
 	{
-		return new self(self::mergeWithSlash(...array_map(
+		return $this->createInstance(static::mergeWithSlash(...array_map(
 			$mapCallback,
 			explode('\\', $this->getFullName())
 		)));
 	}
 
-	public function withNamespace(string $namespace): self
+	public function withNamespace(string $namespace): static
 	{
-		return new self(self::mergeWithSlash($namespace, $this->className));
+		return $this->createInstance(static::mergeWithSlash($namespace, $this->className));
 	}
 
-	public function withRemovedNamespace(string $namespace): self
+	public function withRemovedNamespace(string $namespace): static
 	{
 		return $this->withNamespace($this->removeFromNamespace($namespace));
 	}
 
-	public function withRemovedNamespaceFromStart(string $namespace): self
+	public function withRemovedNamespaceFromStart(string $namespace): static
 	{
 		return $this->withNamespace($this->removeFromNamespace($namespace, '^'));
 	}
 
-	public function withRemovedNamespaceFromEnd(string $namespace): self
+	public function withRemovedNamespaceFromEnd(string $namespace): static
 	{
 		return $this->withNamespace($this->removeFromNamespace($namespace, '', '$'));
 	}
 
-	public function withAppendedNamespace(string $append): self
+	public function withAppendedNamespace(string $append): static
 	{
-		return new self(self::mergeWithSlash($this->namespace, $append, $this->className));
+		return $this->createInstance(static::mergeWithSlash($this->namespace, $append, $this->className));
 	}
 
-	public function withPrependedNamespace(string $prepend): self
+	public function withPrependedNamespace(string $prepend): static
 	{
-		return new self(self::mergeWithSlash($prepend, $this->namespace, $this->className));
+		return $this->createInstance(static::mergeWithSlash($prepend, $this->namespace, $this->className));
 	}
 
-	public function withClassName(string $className): self
+	public function withClassName(string $className): static
 	{
-		return new self(self::mergeWithSlash($this->namespace, $className));
+		return $this->createInstance(static::mergeWithSlash($this->namespace, $className));
 	}
 
-	public function withAppendedClassName(string $append, bool $checkDuplication = false): self
+	public function withAppendedClassName(string $append, bool $checkDuplication = false): static
 	{
 		if ($checkDuplication && str_ends_with($this->className, $append)) {
 			return $this->withClassName($this->className);
@@ -97,7 +97,7 @@ final class PhpClassNaming
 		return $this->withClassName($this->className . $append);
 	}
 
-	public function withPrependedClassName(string $prepend, bool $checkDuplication = false): self
+	public function withPrependedClassName(string $prepend, bool $checkDuplication = false): static
 	{
 		if ($checkDuplication && str_starts_with($this->className, $prepend)) {
 			return $this->withClassName($this->className);
@@ -106,9 +106,9 @@ final class PhpClassNaming
 		return $this->withClassName($prepend . $this->className);
 	}
 
-	public static function createWithMerge(?string ...$arguments): self
+	public static function createWithMerge(?string ...$arguments): static
 	{
-		return new self(self::mergeWithSlash(...$arguments));
+		return new static(static::mergeWithSlash(...$arguments));
 	}
 
 	public static function extractNamespace(string $fullName): ?string
@@ -142,16 +142,21 @@ final class PhpClassNaming
 		return $str ? substr($str, 0, -1) : $str;
 	}
 
+	protected function createInstance(string $fullName): static
+	{
+		return new static($fullName);
+	}
+
 	private function removeFromNamespace(string $needle, string $regexPrepend = '', string $regexAppend = ''): ?string
 	{
 		if (!$this->namespace) {
 			return $this->namespace;
 		}
 
-		$arg = preg_quote(self::normalizeNamespace($needle));
+		$arg = preg_quote(static::normalizeNamespace($needle));
 		$pattern = sprintf('#%s\\\\?%s\\\\?%s#', $regexPrepend, $arg, $regexAppend);
 
-		return self::normalizeNamespace(
+		return static::normalizeNamespace(
 			preg_replace($pattern, '\\', $this->namespace)
 		);
 	}

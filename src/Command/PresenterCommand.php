@@ -4,18 +4,9 @@ namespace WebChemistry\Generette\Command;
 
 use Nette\Application\UI\Presenter;
 use Nette\PhpGenerator\ClassType;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
 use WebChemistry\Generette\Command\Argument\PresenterArguments;
-use WebChemistry\Generette\Utility\FilePathUtility;
-use WebChemistry\Generette\Utility\FilesWriter;
-use WebChemistry\Generette\Utility\PhpClassNaming;
-use WebChemistry\Generette\Utility\UseStatements;
-use WebChemistry\ServiceAttribute\Attribute\Service;
 
-final class PresenterCommand extends GenerateCommand
+final class PresenterCommand extends GeneretteCommand
 {
 
 	public static $defaultName = 'make:presenter';
@@ -32,20 +23,14 @@ final class PresenterCommand extends GenerateCommand
 
 	protected function exec(): void
 	{
-		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace)
+		$className = $this->generette->createClassName($this->arguments->name, $this->namespace)
 			->withAppendedClassName('Presenter', true);
 
-		// file
-		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
-		$this->processClass($class);
+		$this->processClass(
+			$this->generette->createClassType($className)
+		);
 
-		// writing
-		$this->createFilesWriter()
-			->addFile(
-				$this->getFilePathFromClassName($className, $this->basePath, $this->namespace),
-				$this->printer->printFile($file)
-			)
-			->write();
+		$this->generette->finish();
 	}
 
 	private function processClass(ClassType $class): void
@@ -54,7 +39,7 @@ final class PresenterCommand extends GenerateCommand
 			->addBody('parent::__construct();');
 
 		$class->setFinal();
-		$class->addExtend($this->useStatements->use($this->baseClass));
+		$class->setExtends($this->generette->use($this->baseClass));
 	}
 
 }

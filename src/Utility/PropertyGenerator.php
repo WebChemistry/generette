@@ -4,45 +4,49 @@ namespace WebChemistry\Generette\Utility;
 
 use Nette\PhpGenerator\ClassType;
 use Nette\PhpGenerator\Method;
-use WebChemistry\Generette\Utility\ValueObject\PropertyExtractedObject;
+use WebChemistry\Generette\Utility\Result\PropertyExtractedResult;
 
 final class PropertyGenerator
 {
 
 	/**
-	 * @param PropertyExtractedObject[] $properties
+	 * @param PropertyExtractedResult[] $properties
 	 */
 	public function __construct(
 		private array $properties,
-		private UseStatements $useStatements,
-		private bool $promotedProperties = true,
+		private Generette $generette,
 	)
 	{
 	}
 
 	/**
-	 * @param PropertyExtractedObject[] $properties
+	 * @param PropertyExtractedResult[] $properties
 	 */
-	public static function create(array $properties, UseStatements $useStatements, bool $promotedProperties = true): self
+	public static function create(array $properties, Generette $generette): self
 	{
-		return new self($properties, $useStatements, $promotedProperties);
+		return new self($properties, $generette);
 	}
 
-	public function generateProperties(ClassType $class, bool $defaultConstructorFlag = false): self
+	public function generateProperties(ClassType $class): self
 	{
 		foreach ($this->properties as $property) {
-			$isInConstructor = $property->getFlag('cs', $defaultConstructorFlag);
+			$isInConstructor = $property->getFlag('cs');
 
-			if ($isInConstructor && $property->getFlag('prom', $this->promotedProperties)) {
+			if ($isInConstructor && $property->getFlag('prom')) {
 				continue;
 			}
 
 			$prop = $class->addProperty($property->getName());
-			$prop->setPrivate();
 
-			if ($type = $property->getType()) {
-				$prop->setType($this->useStatements->use($type));
+			if ($property->getFlag('pub')) {
+				$prop->setPublic();
+			} elseif ($property->getFlag('pr')) {
+				$prop->setProtected();
+			} else {
+				$prop->setPrivate();
 			}
+
+			$prop->setType($property->useType($this->generette));
 
 			if ($property->hasDefault() && !$isInConstructor) {
 				$prop->setValue($property->getDefault());
@@ -52,29 +56,34 @@ final class PropertyGenerator
 		return $this;
 	}
 
-	public function generateConstructor(Method $method, bool $default = false): self
+	public function generateConstructor(Method $method): self
 	{
 		foreach ($this->properties as $property) {
-			if (!$property->getFlag('cs', $default)) {
+			if (!$property->getFlag('cs')) {
 				continue;
 			}
 
-			if ($property->getFlag('prom', $this->promotedProperties)) {
+			if ($property->getFlag('prom')) {
 				$parameter = $method->addPromotedParameter($property->getName());
-				$parameter->setPrivate();
+
+				if ($property->getFlag('pub')) {
+					$parameter->setPublic();
+				} elseif ($property->getFlag('pr')) {
+					$parameter->setProtected();
+				} else {
+					$parameter->setPrivate();
+				}
 			} else {
 				$parameter = $method->addParameter($property->getName());
 			}
 
-			if ($type = $property->getType()) {
-				$parameter->setType($this->useStatements->use($type));
-			}
+			$parameter->setType($property->useType($this->generette));
 
 			if ($property->hasDefault()) {
 				$parameter->setDefaultValue($property->getDefault());
 			}
 
-			if (!$property->getFlag('prom', $this->promotedProperties)) {
+			if (!$property->getFlag('prom')) {
 				$method->addBody('$this->? = $?;', [$property->getName(), $property->getName()]);
 			}
 		}
@@ -82,22 +91,19 @@ final class PropertyGenerator
 		return $this;
 	}
 
-	public function generateGettersAndSetters(ClassType $class, bool $defaultGetters = false, bool $defaultSetters = false): self
+	public function generateGettersAndSetters(ClassType $class): self
 	{
 		foreach ($this->properties as $property) {
-			if ($property->getFlag('get', $defaultGetters)) {
+			if ($property->getFlag('get')) {
 				$prefix = $property->getType() === 'bool' ? 'is' : 'get';
 
 				$method = $class->addMethod($prefix . ucfirst($property->getName()));
 
-				if ($type = $property->getType()) {
-					$method->setReturnType($this->useStatements->use($type));
-				}
-
+				$method->setReturnType($property->useType($this->generette));
 				$method->addBody('return $this->?;', [$property->getName()]);
 			}
 
-			if ($property->getFlag('set', $defaultSetters)) {
+			if ($property->getFlag('set')) {
 				$method = $class->addMethod('set' . ucfirst($property->getName()));
 
 				$parameter = $method->addParameter($property->getName());
@@ -105,7 +111,7 @@ final class PropertyGenerator
 					$parameter->setType($type);
 				}
 
-				$method->setReturnType($class->isFinal() ? 'self' : 'static');
+				$method->setReturnType('static');
 
 				$method->addBody('$this->? = $?;', [$property->getName(), $property->getName()]);
 				$method->addBody('');

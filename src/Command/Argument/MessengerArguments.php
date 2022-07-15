@@ -2,20 +2,22 @@
 
 namespace WebChemistry\Generette\Command\Argument;
 
-use WebChemistry\ConsoleArguments\Attribute\Argument;
-use WebChemistry\ConsoleArguments\Attribute\Description;
+use WebChemistry\Console\Attribute\Argument;
+use WebChemistry\Console\Attribute\Description;
+use WebChemistry\Console\Attribute\Shortcut;
+use WebChemistry\Generette\Property\Attribute\ConfigureProperties;
+use WebChemistry\Generette\Property\Properties;
 
 #[Description('Creates new message with handler.')]
-final class MessengerArguments implements ArgumentWithClassNameInterface
+final class MessengerArguments
 {
 
 	#[Description('The name of message class.')]
 	#[Argument]
 	public string $name;
 
-	public function getClassName(): string
-	{
-		return $this->name;
-	}
+	#[ConfigureProperties(csFlag: true)]
+	#[Shortcut('p')]
+	public ?Properties $props;
 
 }

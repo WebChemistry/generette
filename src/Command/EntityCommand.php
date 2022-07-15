@@ -10,21 +10,16 @@ use Doctrine\ORM\Mapping\JoinColumn;
 use Doctrine\ORM\Mapping\ManyToOne;
 use Doctrine\ORM\Mapping\Table;
 use Nette\PhpGenerator\ClassType;
+use Nette\Utils\Reflection;
 use Symfony\Component\String\Inflector\EnglishInflector;
 use WebChemistry\Generette\Command\Argument\EntityArguments;
-use WebChemistry\Generette\Property\PropertiesOption;
-use WebChemistry\Generette\Utility\FilePath;
-use WebChemistry\Generette\Utility\PropertyGenerator;
-use WebChemistry\Generette\Utility\UseStatements;
 
-final class EntityCommand extends GenerateCommand
+final class EntityCommand extends GeneretteCommand
 {
 
 	public static $defaultName = 'make:entity';
 
 	protected EntityArguments $arguments;
-
-	private PropertiesOption $propertiesOption;
 
 	public function __construct(
 		private string $namespace,
@@ -33,69 +28,51 @@ final class EntityCommand extends GenerateCommand
 		parent::__construct();
 	}
 
-	protected function configure(): void
-	{
-		parent::configure();
-
-		$this->propertiesOption = $this->createPropertiesOption(shortcut: 'p')
-			->setPromotedFlag(false)
-			->setConstructorFlag(true)
-			->setGetterFlag(true)
-			->setSetterFlag(true)
-			->addFlag('id', 'creates id')
-			->initialize();
-	}
-
 	protected function exec(): void
 	{
-		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace);
+		$className = $this->generette->createClassName($this->arguments->name, $this->namespace);
 
-		// component file
-		$this->createClassFromClassName($file = $this->createPhpFile(), $className);
-		$this->useStatements->use('Doctrine\\ORM\\Mapping', alias: 'ORM');
-		$this->processEntityClass($class = $namespace->addClass($className->getClassName()));
-		$constructor = $class->addMethod('__construct');
+		$class = $this->generette->createClassType($className);
 
-		foreach ($this->propertiesOption->getAll() as $property) {
-			if ($property->hasFlag('id')) {
-				$property->setFlagIfNotSet('set', false);
-				$property->setFlagIfNotSet('cs', false);
-			}
-		}
+		$this->generette->namespace?->addUse('Doctrine\\ORM\\Mapping', 'ORM');
 
-		$this->propertiesOption->setUseStatements($this->useStatements)
-			->generateProperties($class)
-			->generateGettersAndSetters($class)
-			->generateConstructor($constructor);
+		$this->processEntityClass($class);
 
-		foreach ($this->propertiesOption->getAll() as $property) {
-			$prop = $class->getProperty($property->getName());
-			$classType = $property->getType() && !UseStatements::isBuiltIn($property->getType());
-			if ($property->getFlag('id')) {
-				$prop->addAttribute(Id::class);
-				if (!$classType) {
-					$prop->addAttribute(GeneratedValue::class);
+		// properties
+		if ($props = $this->arguments->props) {
+			foreach ($props->toArray() as $property) {
+				if ($property->hasFlag('id')) {
+					$property->setFlagIfNotSet('set', false);
+					$property->setFlagIfNotSet('cs', false);
 				}
 			}
 
-			if ($classType) {
-				$prop->addAttribute(ManyToOne::class);
-				$prop->addAttribute(JoinColumn::class, [
-					'nullable' => false,
-					'onDelete' => 'CASCADE',
-				]);
-			} else {
-				$prop->addAttribute(Column::class);
+			$props->generateAll($this->generette, $class);
+
+			foreach ($props->toArray() as $property) {
+				$prop = $class->getProperty($property->getName());
+
+				$classType = $property->getType() && !Reflection::isBuiltinType($property->getType());
+				if ($property->getFlag('id')) {
+					$prop->addAttribute(Id::class);
+					if (!$classType) {
+						$prop->addAttribute(GeneratedValue::class);
+					}
+				}
+
+				if ($classType) {
+					$prop->addAttribute(ManyToOne::class);
+					$prop->addAttribute(JoinColumn::class, [
+						'nullable' => false,
+						'onDelete' => 'CASCADE',
+					]);
+				} else {
+					$prop->addAttribute(Column::class);
+				}
 			}
 		}
 
-		// directories
-		$this->createFilesWriter()
-			->addFile(
-				$this->getFilePathFromClassName($className),
-				$this->printer->printFile($file),
-			)
-			->write();
+		$this->generette->finish();
 	}
 
 	private function processEntityClass(ClassType $class): void

@@ -4,15 +4,21 @@
 		"php": ">= 8.0",
 		"nette/utils": "^3.2",
 		"symfony/console": "^5.3.0",
-		"webchemistry/console-arguments": "~v1.3.2",
-		"nette/php-generator": "^3.6",
+		"nette/php-generator": "^v4.0.0",
 		"nette/schema": "^1.2",
 		"utilitte/php": "^1.3",
-		"nette/finder": "^2.5"
+		"nette/finder": "^2.5",
+		"webchemistry/console": "^1.2.0"
 	},
 	"autoload": {
 		"psr-4": {
 			"WebChemistry\\Generette\\": "src"
 		}
+	},
+	"require-dev": {
+		"nette/application": "^3.1",
+		"webchemistry/service-attribute": "^2.0",
+		"doctrine/orm": "^2.12",
+		"symfony/messenger": "^6.1"
 	}
 }

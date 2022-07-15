@@ -3,29 +3,15 @@
 namespace WebChemistry\Generette\Command;
 
 use Nette\Application\UI\Control;
-use Symfony\Component\Console\Helper\QuestionHelper;
-use Symfony\Component\Console\Question\ConfirmationQuestion;
-use WebChemistry\Generette\Command\Argument\ComponentArguments;
-use WebChemistry\Generette\Printer\DefaultPrinter;
-use WebChemistry\Generette\UI\DefaultTemplate;
-use WebChemistry\Generette\Utility\FilePath;
-use WebChemistry\Generette\Utility\FilePathUtility;
-use WebChemistry\Generette\Utility\FilesWriter;
-use WebChemistry\Generette\Utility\PhpClassNaming;
-use WebChemistry\Generette\Utility\UseStatements;
+use Nette\Bridges\ApplicationLatte\Template;
 use Nette\PhpGenerator\ClassType;
+use Nette\PhpGenerator\InterfaceType;
 use Nette\PhpGenerator\Method;
-use Nette\PhpGenerator\PhpFile;
-use Nette\PhpGenerator\Printer;
-use Nette\Utils\FileSystem;
 use Nette\Utils\Strings;
-use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
+use WebChemistry\Generette\Command\Argument\ComponentArguments;
 use WebChemistry\ServiceAttribute\Attribute\Service;
 
-final class ComponentCommand extends GenerateCommand
+final class ComponentCommand extends GeneretteCommand
 {
 
 	public static $defaultName = 'make:component';
@@ -35,10 +21,8 @@ final class ComponentCommand extends GenerateCommand
 	public function __construct(
 		private string $namespace,
 		private string $controlClass = Control::class,
-		private string $templateClass = DefaultTemplate::class,
-		private string $templateMethod = '$this->getTemplate()',
+		private string $templateClass = Template::class,
 		private array $traits = [],
-		private ?string $basePath = null,
 	)
 	{
 		parent::__construct();
@@ -46,60 +30,65 @@ final class ComponentCommand extends GenerateCommand
 
 	protected function exec(): void
 	{
-		$writer = $this->createFilesWriter();
-
-		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace)
+		$controlClassName = $this->generette->createClassName($this->arguments->name, $this->namespace)
 			->withAppendedClassName('Component', true);
-		$templateName = $this->extractTemplateName($className->getClassName());
-		$templateClassName = $className->withAppendedNamespace('Template')->withAppendedClassName('Template');
-		$factoryClassName = $className->withAppendedClassName('Factory');
+		$templateClassName = $controlClassName->withAppendedNamespace('Template')->withAppendedClassName('Template');
+		$factoryClassName = $controlClassName->withAppendedClassName('Factory');
 
-		// component
-		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
-		$class->addMethod('__construct');
-		$this->processComponentClass($class);
-		$this->processComponentRenderMethod($class->addMethod('render'), $templateName, $templateClassName->getFullName());
+		$latteFileName = $this->extractTemplateName($controlClassName->getClassName());
 
-		$writer->addFile($this->getFilePathFromClassName($className), $this->printer->printFile($file));
+		// control
+		$class = $this->generette->createClassType($controlClassName);
+
+		if ($this->arguments->constructor) {
+			$class->addMethod('__construct');
+		}
+
+		$this->processComponentRenderMethod($class->addMethod('render'), $latteFileName);
+		$this->processComponentClass($class, $templateClassName->getFullName());
 
 		// template
-		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $templateClassName);
-		$this->processTemplateClass($class, $className->getFullName());
-
-		$writer->addFile($this->getFilePathFromClassName($templateClassName), $this->printer->printFile($file));
+		$this->processTemplateClass(
+			$this->generette->createClassType($templateClassName),
+			$controlClassName->getFullName()
+		);
 
 		// factory
-		$interface = $this->createInterfaceFromClassName($file = $this->createPhpFile(), $factoryClassName);
-		$this->processFactoryClass($interface, $className->getFullName());
-
-		$writer->addFile($this->getFilePathFromClassName($factoryClassName), $this->printer->printFile($file));
+		$this->processFactoryInterface(
+			$this->generette->createInterfaceType($factoryClassName),
+			$controlClassName->getFullName(),
+		);
 
 		// latte file
-		$writer->addFile(
-			dirname($this->getFilePathFromClassName($className)) . '/templates/' . $templateName,
+		$this->generette->filesWriter->addFile(
+			dirname($this->generette->getFilePathFromClassName($controlClassName)) . '/templates/' . $latteFileName,
 			sprintf("{templateType %s}\n", $templateClassName->getFullName())
 		);
 
-		$writer->write();
+		$this->generette->finish();
 	}
 
-	private function processComponentClass(ClassType $class): void
+	private function processComponentClass(ClassType $class, string $templateClass): void
 	{
-		$class->addExtend($this->useStatements->use($this->controlClass));
+		$class->addComment(sprintf('@method %s getTemplate()', $this->generette->use($templateClass, false)));
+		$class->addComment(sprintf('@method %s createTemplate()', $this->generette->use($templateClass, false)));
+		$class->setExtends($this->generette->use($this->controlClass));
 		$class->setFinal();
 
 		foreach ($this->traits as $trait) {
-			$class->addTrait($this->useStatements->use($trait));
+			$class->addTrait($this->generette->use($trait));
 		}
+
+		$class->addMethod('formatTemplateClass')
+			->setReturnType('string')
+			->addBody(sprintf('return %s::class;', $this->generette->use($templateClass, false)));
 	}
 
-	private function processComponentRenderMethod(Method $method, string $templateName, string $templateClassName): void
+	private function processComponentRenderMethod(Method $method, string $templateName): void
 	{
 		$method->setReturnType('void');
 
-		$method->addBody(
-			'$template = ' . strtr($this->templateMethod, ['$templateClassName' => $this->useStatements->use($templateClassName, true)])
-		);
+		$method->addBody('$template = $this->getTemplate();');
 		$method->addBody("\n");
 		$method->addBody(sprintf("\$template->render(__DIR__ . '/templates/%s');", $templateName));
 	}
@@ -107,11 +96,11 @@ final class ComponentCommand extends GenerateCommand
 	private function processTemplateClass(ClassType $class, string $controlClass): void
 	{
 		$class->setFinal();
-		$class->addExtend($this->useStatements->use($this->templateClass));
+		$class->setExtends($this->generette->use($this->templateClass));
 
 		$class->addProperty('control')
 			->setPublic()
-			->setType($this->useStatements->use($controlClass));
+			->setType($this->generette->use($controlClass));
 	}
 
 	private function extractTemplateName(string $className): string
@@ -119,15 +108,15 @@ final class ComponentCommand extends GenerateCommand
 		return Strings::firstLower(preg_replace('#Component$#', '', $className)) . '.latte';
 	}
 
-	private function processFactoryClass(ClassType $class, string $componentClassName): void
+	private function processFactoryInterface(InterfaceType $interface, string $componentClassName): void
 	{
 		if (class_exists(Service::class)) {
-			$class->addAttribute($this->useStatements->use(Service::class));
+			$interface->addAttribute($this->generette->use(Service::class));
 		}
 
-		$class->addMethod('create')
+		$interface->addMethod('create')
 			->setVisibility('public')
-			->setReturnType($this->useStatements->use($componentClassName));
+			->setReturnType($this->generette->use($componentClassName));
 	}
 
 }

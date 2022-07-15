@@ -31,7 +31,9 @@ final class ComposerPathAutoload
 			$this->autoload = [];
 			$json = Json::decode(FileSystem::read($this->composerFile), Json::FORCE_ARRAY);
 
-			foreach ($json['autoload']['psr-4'] as $namespace => $path) {
+			$psr4Autoload = array_merge($json['autoload-dev']['psr-4'] ?? [], $json['autoload']['psr-4'] ?? []);
+
+			foreach ($psr4Autoload as $namespace => $path) {
 				$namespace = rtrim($namespace, '\\');
 
 				if (is_string($path)) {
@@ -72,7 +74,7 @@ final class ComposerPathAutoload
 		}
 
 		if ($bestPath === null || $bestNamespace === null) {
-			throw new LogicException(sprintf('Cannot resolve namespace "%s" to path.', $namespace));
+			throw new LogicException(sprintf('Cannot resolve composer namespace "%s" to path.', $namespace));
 		}
 
 		$namespacePath = strtr(

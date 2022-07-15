@@ -12,7 +12,7 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
 final class FilesWriter
 {
 
-	/** @var array<string, string> */
+	/** @var array<string, string|callable(): string> */
 	private array $files;
 
 	public function __construct(
@@ -35,9 +35,28 @@ final class FilesWriter
 		return $this;
 	}
 
+	/**
+	 * @param callable(): string $callback
+	 * @return static
+	 */
+	public function addLazyFile(string $filePath, callable $callback): self
+	{
+		$this->files[$filePath] = $callback;
+
+		return $this;
+	}
+
 	public function write(bool $overwriteForce = false): int
 	{
-		$files = $this->files;
+		$files = [];
+
+		foreach ($this->files as $path => $file) {
+			if (is_callable($file)) {
+				$file = $file();
+			}
+
+			$files[$path] = $file;
+		}
 
 		if (!$overwriteForce) {
 			foreach ($files as $filePath => $_) {

@@ -2,19 +2,15 @@
 
 namespace WebChemistry\Generette\Command\Argument;
 
-use WebChemistry\ConsoleArguments\Attribute\Argument;
-use WebChemistry\ConsoleArguments\Attribute\Description;
+use WebChemistry\Console\Attribute\Argument;
+use WebChemistry\Console\Attribute\Description;
 
 #[Description('Makes presenter.')]
-final class PresenterArguments implements ArgumentWithClassNameInterface
+final class PresenterArguments
 {
 
-	#[Argument('The name of presenter.')]
+	#[Argument]
+	#[Description('The name of presenter.')]
 	public string $name;
-
-	public function getClassName(): string
-	{
-		return $this->name;
-	}
 
 }

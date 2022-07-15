@@ -2,12 +2,12 @@
 
 namespace WebChemistry\Generette\Command\Argument;
 
-use WebChemistry\ConsoleArguments\Attribute\Argument;
-use WebChemistry\ConsoleArguments\Attribute\Description;
-use WebChemistry\ConsoleArguments\Attribute\Shortcut;
+use WebChemistry\Console\Attribute\Argument;
+use WebChemistry\Console\Attribute\Description;
+use WebChemistry\Console\Attribute\Shortcut;
 
 #[Description('Creates new component.')]
-final class ComponentArguments implements ArgumentWithClassNameInterface
+final class ComponentArguments
 {
 
 	#[Argument]
@@ -16,10 +16,5 @@ final class ComponentArguments implements ArgumentWithClassNameInterface
 
 	#[Shortcut('c')]
 	public bool $constructor = false;
-
-	public function getClassName(): string
-	{
-		return $this->name;
-	}
 
 }

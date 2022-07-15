@@ -5,9 +5,8 @@ namespace WebChemistry\Generette\Command;
 use Nette\Application\UI\Presenter;
 use Nette\PhpGenerator\ClassType;
 use WebChemistry\Generette\Command\Argument\AdminPresenterArguments;
-use WebChemistry\Generette\Utility\FilePath;
 
-final class AdminPresenterCommand extends GenerateCommand
+final class AdminPresenterCommand extends GeneretteCommand
 {
 
 	protected static $defaultName = 'make:presenter:admin';
@@ -24,18 +23,12 @@ final class AdminPresenterCommand extends GenerateCommand
 
 	protected function exec(): void
 	{
-		$writer = $this->createFilesWriter();
-
-		$className = $this->createClassNameFromArguments($this->arguments, $this->namespace)
+		$className = $this->generette->createClassName($this->arguments->name, $this->namespace)
 			->withAppendedClassName('Presenter', true);
 
-		$class = $this->createClassFromClassName($file = $this->createPhpFile(), $className);
-		$this->processClass($class);
+		$this->processClass($this->generette->createClassType($className));
 
-		$writer->addFile(
-			$this->getFilePathFromClassName($className),
-			$this->printer->printFile($file)
-		)->write();
+		$this->generette->finish();
 	}
 
 	private function processClass(ClassType $class): void
@@ -43,12 +36,12 @@ final class AdminPresenterCommand extends GenerateCommand
 		$class->setFinal();
 		$class->addMethod('__construct')
 			->addBody('parent::__construct();');
-		$class->addExtend($this->useStatements->use($this->baseClass));
+		$class->setExtends($this->generette->use($this->baseClass));
 
 		$method = $class->addMethod('utilize');
 		$method->setReturnType('void');
 		$method->addParameter('utils')
-			->setType($this->useStatements->use('WebChemistry\AdminLTE\Utility\AdministrationUtility'));
+			->setType($this->generette->use('WebChemistry\AdminLTE\Utility\AdministrationUtility'));
 
 		$method->addBody('$utils->createAction(\'default\', \'\')')
 			->addBody("\t->run();");

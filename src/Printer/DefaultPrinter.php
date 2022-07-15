@@ -4,11 +4,14 @@ namespace WebChemistry\Generette\Printer;
 
 use Nette\PhpGenerator\ClassType;
 use Nette\PhpGenerator\Dumper;
+use Nette\PhpGenerator\EnumType;
 use Nette\PhpGenerator\Helpers;
+use Nette\PhpGenerator\InterfaceType;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PhpNamespace;
 use Nette\PhpGenerator\Printer;
 use Nette\PhpGenerator\PromotedParameter;
+use Nette\PhpGenerator\TraitType;
 use Nette\PhpGenerator\Type;
 use Nette\Utils\Strings;
 
@@ -39,7 +42,7 @@ final class DefaultPrinter extends Printer
 			) . "\n";
 	}
 
-	public function printClass(ClassType $class, PhpNamespace $namespace = null): string
+	public function printClass(ClassType|InterfaceType|TraitType|EnumType $class, PhpNamespace $namespace = null): string
 	{
 		$lines = explode("\n", parent::printClass($class, $namespace));
 		foreach ($lines as $i => $line) {

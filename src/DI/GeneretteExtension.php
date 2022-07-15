@@ -6,7 +6,7 @@ use Nette\DI\CompilerExtension;
 use Nette\DI\Definitions\ServiceDefinition;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
-use WebChemistry\Generette\Command\GenerateCommand;
+use WebChemistry\Generette\Command\GeneretteCommand;
 
 final class GeneretteExtension extends CompilerExtension
 {
@@ -28,7 +28,7 @@ final class GeneretteExtension extends CompilerExtension
 			return;
 		}
 
-		foreach ($builder->findByType(GenerateCommand::class) as $command) {
+		foreach ($builder->findByType(GeneretteCommand::class) as $command) {
 			if ($command instanceof ServiceDefinition) {
 				$command->addSetup('setComposer', [$config->composer]);
 			}
