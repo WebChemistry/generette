@@ -16,7 +16,7 @@ final class EntityArguments
 	#[Description('The name of entity.')]
 	public string $name;
 
-	#[ConfigureProperties(csFlag: true, getFlag: true, setFlag: true, flags: ['id' => ['desc' => 'generate identifier']])]
+	#[ConfigureProperties(flags: ['id' => ['desc' => 'generate identifier']] + Properties::FLAG_CS_TRUE + Properties::FLAG_GET_TRUE + Properties::FLAG_SET_TRUE)]
 	#[Shortcut('p')]
 	public ?Properties $props;
 

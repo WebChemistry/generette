@@ -47,7 +47,7 @@ final class EntityCommand extends GeneretteCommand
 				}
 			}
 
-			$props->generateAll($this->generette, $class);
+			$props->generate($this->generette, $class);
 
 			foreach ($props->toArray() as $property) {
 				$prop = $class->getProperty($property->getName());

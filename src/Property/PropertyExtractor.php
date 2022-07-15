@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace WebChemistry\Generette\Utility;
+namespace WebChemistry\Generette\Property;
 
 use DomainException;
 use WebChemistry\Generette\Utility\Result\PropertyExtractedResult;
@@ -9,23 +9,28 @@ final class PropertyExtractor
 {
 
 	/**
-	 * Extracts property:int,property2:string,property3@flag@!false=default
+	 * property: int, property2: string
+	 * property@flag
+	 * property@!flag
+	 * property@flag=default
+	 * property=default
 	 *
 	 * @param array<string, bool> $flags
 	 * @return PropertyExtractedResult[]
 	 */
-	public static function extract(?string $string, array $flags): array
+	public static function extract(?string $string, array $flags, string $visibility): array
 	{
 		if (!$string) {
 			return [];
 		}
 
 		$properties = array_map(
-			function (string $definition) use ($flags): array
+			function (string $definition) use ($flags, $visibility): array
 			{
 				$extractedFlags = [];
 
 				$default = null;
+
 				$definition = preg_replace_callback('#@(!)?([a-zA-Z]+)#', function (array $matches) use (&$extractedFlags, $flags): string {
 					$flag = strtolower($matches[2]);
 					if (!isset($flags[$flag])) {
@@ -36,6 +41,7 @@ final class PropertyExtractor
 
 					return '';
 				}, $definition);
+
 				$definition = preg_replace_callback('#=([a-zA-Z0-9]*)#', function (array $matches) use (&$default): string {
 					$default = $matches[1];
 
@@ -44,11 +50,26 @@ final class PropertyExtractor
 
 				$explode = explode(':', $definition);
 
-				$type = $explode[1] ?? null;
+				$name = $explode[0];
+
+				if (str_starts_with($name, '+')) {
+					$name = substr($name, 1);
+					$visibility = 'public';
+
+				} elseif (str_starts_with($name, '-')) {
+					$name = substr($name, 1);
+					$visibility = 'private';
+
+				} elseif (str_starts_with($name, '#')) {
+					$name = substr($name, 1);
+					$visibility = 'protected';
+
+				}
 
 				return [
-					'name' => $explode[0],
-					'type' => $type,
+					'name' => $name,
+					'visibility' => $visibility,
+					'type' => $explode[1] ?? null,
 					'flags' => $extractedFlags,
 					'default' => $default,
 				];
@@ -64,6 +85,7 @@ final class PropertyExtractor
 				$map['flags'],
 				$flags,
 				$map['default'],
+				$map['visibility'],
 			);
 		}
 

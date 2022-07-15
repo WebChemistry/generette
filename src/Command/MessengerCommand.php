@@ -30,7 +30,7 @@ final class MessengerCommand extends GeneretteCommand
 		// message class
 		$this->processMessageClass($messageClass = $this->generette->createClassType($className));
 
-		$this->arguments->props?->generateAll($this->generette, $messageClass);
+		$this->arguments->props?->generate($this->generette, $messageClass);
 
 		// handler class
 		$this->processHandlerClass($this->generette->createClassType($handlerClassName), $className->getFullName());

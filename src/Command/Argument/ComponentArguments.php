@@ -6,12 +6,12 @@ use WebChemistry\Console\Attribute\Argument;
 use WebChemistry\Console\Attribute\Description;
 use WebChemistry\Console\Attribute\Shortcut;
 
-#[Description('Creates new component.')]
+#[Description('Creates new component')]
 final class ComponentArguments
 {
 
 	#[Argument]
-	#[Description('The name of component.')]
+	#[Description('The name of component')]
 	public string $name;
 
 	#[Shortcut('c')]

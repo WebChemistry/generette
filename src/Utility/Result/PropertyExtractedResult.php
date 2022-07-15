@@ -2,7 +2,6 @@
 
 namespace WebChemistry\Generette\Utility\Result;
 
-use DomainException;
 use Nette\Utils\Type;
 use WebChemistry\Generette\Utility\Generette;
 use WebChemistry\Generette\Utility\PhpClassName;
@@ -27,11 +26,17 @@ final class PropertyExtractedResult
 		private array $flags,
 		private array $flagsDefaults,
 		private ?string $default,
+		private ?string $visibility,
 	)
 	{
 		if ($this->type) {
 			$this->type = strtr($this->type, ['/' => '\\']);
 		}
+	}
+
+	public function getVisibility(): ?string
+	{
+		return $this->visibility;
 	}
 
 	public function getName(): string
@@ -79,13 +84,9 @@ final class PropertyExtractedResult
 		return array_key_exists($flag, $this->flags);
 	}
 
-	public function getFlag(string $flag): mixed
+	public function getFlag(string $flag): bool
 	{
-		return $this->flags[$flag]
-			   ??
-			   $this->flagsDefaults[$flag]
-			   ??
-			   throw new DomainException(sprintf('Unexpected flag "%s".', $flag));
+		return $this->flags[$flag] ?? $this->flagsDefaults[$flag] ?? false;
 	}
 
 	public function setFlag(string $flag, bool $value): self

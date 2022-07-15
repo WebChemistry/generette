@@ -17,12 +17,9 @@ final class ConfigureProperties extends Configuration
 	 * @param array<string, array{ desc: string, default?: bool }> $flags
 	 */
 	public function __construct(
-		private bool $promFlag = false,
-		private bool $csFlag = false,
-		private bool $getFlag = false,
-		private bool $setFlag = false,
 		private array $flags = [],
 		private string $description = 'Generate properties',
+		private string $visibility = 'private',
 	)
 	{
 		parent::__construct('processValue', 'getDescription');
@@ -36,12 +33,9 @@ final class ConfigureProperties extends Configuration
 	private function createProperties(): Properties
 	{
 		return new Properties(
-			$this->promFlag,
-			$this->csFlag,
-			$this->getFlag,
-			$this->setFlag,
 			$this->flags,
 			$this->description,
+			$this->visibility,
 		);
 	}
 

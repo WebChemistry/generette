@@ -8,16 +8,16 @@ use WebChemistry\Console\Attribute\Shortcut;
 use WebChemistry\Generette\Property\Attribute\ConfigureProperties;
 use WebChemistry\Generette\Property\Properties;
 
-#[Description('Creates new message with handler')]
-final class MessengerArguments
+#[Description('Creates new command')]
+final class CommandArguments extends GeneretteArguments
 {
 
-	#[Description('The name of message class')]
+	#[Description('Name of command')]
 	#[Argument]
 	public string $name;
 
-	#[ConfigureProperties(csFlag: true)]
 	#[Shortcut('p')]
+	#[ConfigureProperties(flags: ['arg' => ['desc' => 'property as argument']], visibility: 'public')]
 	public ?Properties $props;
 
 }
