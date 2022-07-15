@@ -31,9 +31,17 @@ abstract class GeneretteCommand extends BaseCommand
 		return $this;
 	}
 
-	public function setComposerDir(?string $composerDir): static
+	public function setComposer(?string $composer): static
 	{
-		$this->composer = $composerDir ? new ComposerPathAutoload(rtrim($composerDir, '/') . '/composer.json') : null;
+		if ($composer) {
+			if (!str_ends_with($composer, '.json')) {
+				$composer = rtrim($composer, '/') . '/composer.json';
+			}
+
+			$this->composer = new ComposerPathAutoload($composer);
+		} else {
+			$this->composer = null;
+		}
 
 		return $this;
 	}

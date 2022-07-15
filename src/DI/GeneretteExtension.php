@@ -6,6 +6,7 @@ use Nette\DI\CompilerExtension;
 use Nette\DI\Definitions\ServiceDefinition;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
+use stdClass;
 use WebChemistry\Generette\Command\GeneretteCommand;
 
 final class GeneretteExtension extends CompilerExtension

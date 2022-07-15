@@ -19,6 +19,7 @@
 		"nette/application": "^3.1",
 		"webchemistry/service-attribute": "^2.0",
 		"doctrine/orm": "^2.12",
-		"symfony/messenger": "^6.1"
+		"symfony/messenger": "^6.1",
+		"nette/di": "^3.0"
 	}
 }
