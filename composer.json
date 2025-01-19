@@ -3,7 +3,7 @@
 	"require": {
 		"php": ">= 8.0",
 		"nette/utils": "^3.2 || ^4.0",
-		"symfony/console": "^5.3.0",
+		"symfony/console": "^5.3.0 || ^6.0",
 		"nette/php-generator": "^3.5.0 || ^v4.0.0",
 		"nette/schema": "^1.2",
 		"utilitte/php": "^1.3",
